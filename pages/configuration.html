@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration — Extending the Knob</title>
+  <meta name="description" content="Keymaps, layers, profiles, encoders, multi-actions, and BLE slots. The JSON configuration that controls the k·no·b·1's behavior.">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* --- Configuration Page Specifics --- */
+
+    /* --- JSON Tree --- */
+    .json-tree {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+      margin-bottom: var(--space-xl);
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+    }
+
+    .json-tree .json-key {
+      color: var(--accent);
+    }
+
+    .json-tree .json-string {
+      color: var(--green);
+    }
+
+    .json-tree .json-number {
+      color: var(--blue);
+    }
+
+    .json-tree .json-bracket {
+      color: var(--text-tertiary);
+    }
+
+    .json-tree .json-comment {
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
+    .json-tree .json-collapsible {
+      cursor: pointer;
+      position: relative;
+      padding-left: 1.2em;
+      user-select: none;
+    }
+
+    .json-tree .json-collapsible::before {
+      content: '\25BC';
+      position: absolute;
+      left: 0;
+      font-size: 0.6em;
+      color: var(--text-tertiary);
+      transition: transform var(--duration-fast) var(--ease-out);
+      display: inline-block;
+      top: 0.45em;
+    }
+
+    .json-tree .json-collapsible.collapsed::before {
+      transform: rotate(-90deg);
+    }
+
+    .json-tree .json-collapsible.collapsed + .json-children {
+      display: none;
+    }
+
+    .json-tree .json-collapsed-hint {
+      display: none;
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
+    .json-tree .json-collapsible.collapsed .json-collapsed-hint {
+      display: inline;
+    }
+
+    .json-tree .json-children {
+      padding-left: 1.5em;
+    }
+
+    /* --- Category Badge --- */
+    .category-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: var(--space-md);
+    }
+
+    .category-badge.layer    { color: var(--accent); background: var(--accent-dim); }
+    .category-badge.profile  { color: var(--blue); background: var(--blue-dim); }
+    .category-badge.ble      { color: var(--green); background: var(--green-dim); }
+    .category-badge.lighting { color: #C9A0DC; background: rgba(201, 160, 220, 0.12); }
+    .category-badge.function { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+    .category-badge.multi    { color: var(--red); background: var(--red-dim); }
+
+    /* --- Event Type Cards --- */
+    .event-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-md);
+      margin: var(--space-xl) 0;
+    }
+
+    .event-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+      text-align: center;
+      transition: border-color var(--duration) var(--ease-out),
+                  transform var(--duration) var(--ease-out);
+    }
+
+    .event-card:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+
+    .event-card .event-icon {
+      font-size: 1.5rem;
+      margin-bottom: var(--space-sm);
+      color: var(--accent);
+    }
+
+    .event-card h4 {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      margin-bottom: var(--space-xs);
+    }
+
+    .event-card p {
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    /* --- Encoder Diagram --- */
+    .encoder-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2xl);
+      margin: var(--space-2xl) 0;
+    }
+
+    .encoder-visual {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 2px solid var(--surface-border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .encoder-visual .knob-line {
+      width: 2px;
+      height: 30px;
+      background: var(--accent);
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 1px;
+    }
+
+    .encoder-visual .cw-label,
+    .encoder-visual .ccw-label {
+      position: absolute;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+    }
+
+    .encoder-visual .cw-label {
+      right: -45px;
+      top: 30%;
+    }
+
+    .encoder-visual .ccw-label {
+      left: -50px;
+      top: 30%;
+    }
+
+    .encoder-visual .tap-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent);
+    }
+
+    .encoder-actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .encoder-action {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .encoder-action .ea-dir {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 2px 8px;
+      border-radius: 4px;
+      min-width: 50px;
+      text-align: center;
+    }
+
+    .encoder-action .ea-desc {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    /* --- Power States --- */
+    .power-states {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: var(--space-xl) 0;
+    }
+
+    .power-state {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      position: relative;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+
+    .power-state:first-child {
+      border-radius: 10px 10px 0 0;
+    }
+
+    .power-state:last-child {
+      border-radius: 0 0 10px 10px;
+    }
+
+    .power-state + .power-state {
+      border-top: none;
+    }
+
+    .power-state:hover {
+      background: var(--surface-hover);
+    }
+
+    .power-state .ps-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .power-state .ps-name {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text);
+      min-width: 80px;
+    }
+
+    .power-state .ps-desc {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .power-state .ps-arrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      position: absolute;
+      right: var(--space-xl);
+      bottom: -10px;
+      z-index: 1;
+    }
+
+    /* --- BLE Slots Grid --- */
+    .ble-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-md);
+      margin: var(--space-xl) 0;
+    }
+
+    .ble-slot {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+      text-align: center;
+      transition: border-color var(--duration) var(--ease-out),
+                  transform var(--duration) var(--ease-out);
+    }
+
+    .ble-slot:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+
+    .ble-slot .slot-num {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xl);
+      font-weight: 300;
+      color: var(--blue);
+      margin-bottom: var(--space-xs);
+    }
+
+    .ble-slot .slot-switch {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: 2px 6px;
+      border-radius: 3px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .ble-slot .slot-pair {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--blue);
+      background: var(--blue-dim);
+      padding: 2px 6px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    @media (max-width: 768px) {
+      .encoder-diagram { flex-direction: column; }
+      .ble-grid { grid-template-columns: repeat(2, 1fr); }
+      .event-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="../index.html" class="nav-logo">
+      <span class="dot"></span>
+      extending the knob
+    </a>
+    <ul class="nav-links">
+      <li><a href="hardware.html">Hardware</a></li>
+      <li><a href="protocol.html">Protocol</a></li>
+      <li><a href="display.html">Display</a></li>
+      <li><a href="sdk.html">SDK</a></li>
+      <li><a href="configuration.html" class="active">Configuration</a></li>
+      <li><a href="tools.html">Tools</a></li>
+      <li><a href="confidence.html">Confidence</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+
+    <!-- Hero -->
+    <section class="hero container" style="min-height: auto; padding: var(--space-4xl) 0 var(--space-3xl);">
+      <h4 class="fade-in section-label" style="margin-bottom: var(--space-sm);">Configuration</h4>
+      <h1 class="fade-in" style="font-size: var(--text-4xl);">Making It Yours</h1>
+      <p class="fade-in" style="color: var(--text-secondary); font-size: var(--text-lg); line-height: var(--leading-snug); margin-top: var(--space-lg); max-width: 48ch;">
+        Keymaps, layers, profiles, encoders, multi-actions, BLE slots. Everything
+        the k&middot;no&middot;b&middot;1 does is driven by a single JSON file stored
+        on the device filesystem &mdash; <code>keymap.json</code>.
+      </p>
+    </section>
+
+    <!-- The Keymap File -->
+    <section class="section container">
+      <div class="section-label fade-in">Storage</div>
+      <h2 class="fade-in">The Keymap File</h2>
+      <p class="fade-in">
+        All device configuration lives in <code>keymap.json</code>, stored on the
+        k&middot;no&middot;b&middot;1&rsquo;s LittleFS partition. It can be read and
+        written over USB using the <code>fs.readbin</code> and <code>fs.writebin</code>
+        RPC methods (see the <a href="protocol.html">Protocol</a> page).
+      </p>
+      <p class="fade-in">
+        The file defines profiles, layers, encoder bindings, multi-actions, and macros.
+        Editing this file is how you customize every aspect of the device&rsquo;s behavior.
+      </p>
+
+      <div class="card fade-in" style="margin-top: var(--space-lg); border-left: 3px solid var(--green); background: rgba(122, 179, 140, 0.04);">
+        <h4 style="color: var(--green);">Schema Verified from Firmware</h4>
+        <p style="margin: 0 0 var(--space-sm) 0; font-size: var(--text-sm);">
+          The schema shown below is not inferred. We extracted both default keymap JSON blobs
+          embedded in the v0.3.2-rc.19 firmware binary (offsets <code>0x10735</code> and
+          <code>0x1104d</code>) and parsed them as JSON. The structure is real; every field name
+          and nesting shape matches production firmware exactly.
+        </p>
+        <p style="margin: 0; font-size: var(--text-sm); color: var(--text-secondary);">
+          Two variants are embedded: a <strong>3-encoder</strong> configuration and a
+          <strong>2-encoder</strong> configuration. Both ship 6&times;14 keymap grids intended
+          for the full-keyboard devices (Nomad&nbsp;E, Creator Micro v2). The device&rsquo;s
+          eFuse vendor data selects which default to load at first boot; user customizations
+          then overwrite the file.
+        </p>
+      </div>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">Schema Structure</h3>
+
+      <div class="json-tree fade-in" id="jsonTree">
+        <div class="json-collapsible" onclick="this.classList.toggle('collapsed')">
+          <span class="json-bracket">{</span>
+          <span class="json-collapsed-hint"> ... }</span>
+        </div>
+        <div class="json-children">
+          <div>&nbsp;&nbsp;<span class="json-key">"version"</span>: <span class="json-number">1</span>,</div>
+          <div>&nbsp;&nbsp;<span class="json-key">"activeProfileId"</span>: <span class="json-string">"..."</span>,</div>
+
+          <div class="json-collapsible" onclick="this.classList.toggle('collapsed')">
+            &nbsp;&nbsp;<span class="json-key">"profiles"</span>: <span class="json-bracket">[{</span>
+            <span class="json-collapsed-hint"> ... }]</span>
+          </div>
+          <div class="json-children">
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"name"</span>: <span class="json-string">"Default"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"id"</span>: <span class="json-string">"..."</span>,</div>
+
+            <div class="json-collapsible" onclick="this.classList.toggle('collapsed')">
+              &nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"layers"</span>: <span class="json-bracket">[{</span>
+              <span class="json-collapsed-hint"> ... }]</span>
+            </div>
+            <div class="json-children">
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"id"</span>: <span class="json-string">"..."</span>,</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"name"</span>: <span class="json-string">"Base"</span>,</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"color"</span>: <span class="json-string">"#D4A853"</span>,</div>
+
+              <div class="json-collapsible" onclick="this.classList.toggle('collapsed')">
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"layout"</span>: <span class="json-bracket">{</span>
+                <span class="json-collapsed-hint"> ... }</span>
+              </div>
+              <div class="json-children">
+                <div class="json-collapsible" onclick="this.classList.toggle('collapsed')">
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"encoders"</span>: <span class="json-bracket">[{</span>
+                  <span class="json-collapsed-hint"> ... }]</span>
+                </div>
+                <div class="json-children">
+                  <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"cw"</span>: <span class="json-string">"KC_VOLU"</span>,</div>
+                  <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"ccw"</span>: <span class="json-string">"KC_VOLD"</span>,</div>
+                  <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"tap"</span>: <span class="json-string">"KC_MUTE"</span></div>
+                  <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-bracket">}]</span>,</div>
+                </div>
+                <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"buttons"</span>: <span class="json-bracket">[</span><span class="json-comment">...</span><span class="json-bracket">]</span>,</div>
+                <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"keymap"</span>: <span class="json-bracket">[</span><span class="json-comment">...</span><span class="json-bracket">]</span></div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-bracket">}</span>,</div>
+              </div>
+
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"os"</span>: <span class="json-string">"mac"</span></div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-bracket">}]</span></div>
+            </div>
+
+          <div>&nbsp;&nbsp;<span class="json-bracket">}]</span>,</div>
+          </div>
+
+          <div class="json-collapsible" onclick="this.classList.toggle('collapsed')">
+            &nbsp;&nbsp;<span class="json-key">"multiActions"</span>: <span class="json-bracket">[{</span>
+            <span class="json-collapsed-hint"> ... }]</span>
+          </div>
+          <div class="json-children">
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"id"</span>: <span class="json-string">"..."</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"name"</span>: <span class="json-string">"Smart Play"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"kcOnTap"</span>: <span class="json-string">"KC_MPLY"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"kcOnHold"</span>: <span class="json-string">"KC_MNXT"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"kcOnDoubleTap"</span>: <span class="json-string">"KC_MPRV"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="json-key">"kcOnTapHold"</span>: <span class="json-string">"KI_FP"</span></div>
+          <div>&nbsp;&nbsp;<span class="json-bracket">}]</span>,</div>
+          </div>
+
+          <div>&nbsp;&nbsp;<span class="json-key">"macros"</span>: <span class="json-bracket">[]</span></div>
+        <div><span class="json-bracket">}</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Custom Keycodes -->
+    <section class="section container">
+      <div class="section-label fade-in">Keycodes</div>
+      <h2 class="fade-in">Custom Keycodes</h2>
+      <p class="fade-in">
+        Beyond the standard HID keycodes (<code>KC_*</code>), the k&middot;no&middot;b&middot;1
+        firmware defines custom keycodes prefixed with <code>KI_</code> and <code>KA_</code>
+        for device-specific functions.
+      </p>
+
+      <!-- Layer Control -->
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">
+        <span class="category-badge layer">Layer Control</span>
+      </h3>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Keycode</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>KI_LS1</code> &ndash; <code>KI_LS15</code></td><td>Layer switch &mdash; activate layer N (1&ndash;15)</td></tr>
+            <tr><td><code>KI_LSNEXT</code></td><td>Switch to next layer</td></tr>
+            <tr><td><code>KI_LSPREV</code></td><td>Switch to previous layer</td></tr>
+            <tr><td><code>KI_LM1</code> &ndash; <code>KI_LM15</code></td><td>Layer momentary &mdash; activate layer N while held (1&ndash;15)</td></tr>
+            <tr><td><code>KI_LMNEXT</code></td><td>Next layer momentary (active while held)</td></tr>
+            <tr><td><code>KI_LMPREV</code></td><td>Previous layer momentary (active while held)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Profile Control -->
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">
+        <span class="category-badge profile">Profile Control</span>
+      </h3>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Keycode</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>KI_PS1</code> &ndash; <code>KI_PS15</code></td><td>Profile switch &mdash; activate profile N (1&ndash;15)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- BLE Slots -->
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">
+        <span class="category-badge ble">BLE Slots</span>
+      </h3>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Keycode</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>KI_CBT1</code> &ndash; <code>KI_CBT8</code></td><td>Switch to BLE device 1&ndash;8</td></tr>
+            <tr><td><code>KI_CBTP1</code> &ndash; <code>KI_CBTP8</code></td><td>Pair BLE device 1&ndash;8</td></tr>
+            <tr><td><code>KI_CUSB</code></td><td>Switch to USB connection</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Lighting -->
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">
+        <span class="category-badge lighting">Lighting</span>
+      </h3>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Keycode</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>KI_BLUP</code></td><td>Backlight brightness up</td></tr>
+            <tr><td><code>KI_BLDW</code></td><td>Backlight brightness down</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Function -->
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">
+        <span class="category-badge function">Function</span>
+      </h3>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Keycode</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>KI_FP</code></td><td>Function pad toggle</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Multi-actions -->
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">
+        <span class="category-badge multi">Multi-Actions</span>
+      </h3>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Keycode</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>KA_M0</code> &ndash; <code>KA_M3</code></td><td>Trigger multi-action 0&ndash;3</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Multi-Actions -->
+    <section class="section container">
+      <div class="section-label fade-in">Behavior</div>
+      <h2 class="fade-in">Multi-Actions</h2>
+      <p class="fade-in">
+        Multi-actions let a single key trigger up to four different keycodes
+        depending on how it is pressed. Each multi-action defines handlers for
+        four distinct event types, and can be assigned to any button or encoder
+        via the <code>KA_M0</code>&ndash;<code>KA_M3</code> keycodes.
+      </p>
+
+      <div class="event-grid fade-in">
+        <div class="event-card">
+          <div class="event-icon">&#9679;</div>
+          <h4>Tap</h4>
+          <p>Quick press and release.<br><code>kcOnTap</code></p>
+        </div>
+        <div class="event-card">
+          <div class="event-icon">&#9644;</div>
+          <h4>Hold</h4>
+          <p>Press and hold past tapping term.<br><code>kcOnHold</code></p>
+        </div>
+        <div class="event-card">
+          <div class="event-icon">&#9679;&#9679;</div>
+          <h4>Double-Tap</h4>
+          <p>Two quick taps in succession.<br><code>kcOnDoubleTap</code></p>
+        </div>
+        <div class="event-card">
+          <div class="event-icon">&#9679;&#9644;</div>
+          <h4>Tap-Hold</h4>
+          <p>Tap once, then press and hold.<br><code>kcOnTapHold</code></p>
+        </div>
+      </div>
+
+      <p class="fade-in">
+        The <strong>tapping term</strong> determines the threshold between a tap and
+        a hold. The default is <strong>250ms</strong>. A press shorter than the tapping
+        term registers as a tap; longer registers as a hold. Double-tap detection
+        uses the same window.
+      </p>
+
+      <pre class="fade-in"><code>{
+  "id": "ma_01",
+  "name": "Smart Play",
+  "kcOnTap": "KC_MPLY",         // tap: play/pause
+  "kcOnHold": "KC_MNXT",        // hold: next track
+  "kcOnDoubleTap": "KC_MPRV",   // double-tap: previous track
+  "kcOnTapHold": "KI_FP"        // tap-hold: function pad
+}</code></pre>
+    </section>
+
+    <!-- Encoders -->
+    <section class="section container">
+      <div class="section-label fade-in">Input</div>
+      <h2 class="fade-in">Encoders</h2>
+      <p class="fade-in">
+        The rotary encoders have per-layer configuration. Each encoder defines
+        three actions: clockwise rotation, counter-clockwise rotation, and push
+        button tap. These are defined in the <code>layout.encoders</code> array
+        of each layer.
+      </p>
+
+      <div class="encoder-diagram fade-in">
+        <div class="encoder-visual">
+          <div class="knob-line"></div>
+          <span class="tap-label">TAP</span>
+          <span class="cw-label">CW &rarr;</span>
+          <span class="ccw-label">&larr; CCW</span>
+        </div>
+        <div class="encoder-actions">
+          <div class="encoder-action">
+            <span class="ea-dir">CW</span>
+            <span class="ea-desc">Clockwise rotation keycode</span>
+          </div>
+          <div class="encoder-action">
+            <span class="ea-dir">CCW</span>
+            <span class="ea-desc">Counter-clockwise rotation keycode</span>
+          </div>
+          <div class="encoder-action">
+            <span class="ea-dir">TAP</span>
+            <span class="ea-desc">Push button keycode</span>
+          </div>
+        </div>
+      </div>
+
+      <pre class="fade-in"><code>"encoders": [
+  {
+    "cw": "KC_VOLU",    // clockwise: volume up
+    "ccw": "KC_VOLD",   // counter-clockwise: volume down
+    "tap": "KC_MUTE"    // push: mute
+  }
+]</code></pre>
+
+      <p class="fade-in">
+        Because encoder bindings live inside each layer, you can have completely
+        different encoder behavior per layer &mdash; volume control on the base layer,
+        zoom on a design layer, scroll on a code layer, and so on.
+      </p>
+    </section>
+
+    <!-- Power Management -->
+    <section class="section container">
+      <div class="section-label fade-in">Power</div>
+      <h2 class="fade-in">Power Management</h2>
+      <p class="fade-in">
+        The k&middot;no&middot;b&middot;1 manages power through six progressive states.
+        As inactivity increases, the device steps down through lower power modes.
+        Any user activity &mdash; key press, encoder turn, touch &mdash; resets the
+        device back to the active state. Timeouts between states are configurable.
+      </p>
+
+      <div class="power-states fade-in">
+        <div class="power-state">
+          <div class="ps-indicator" style="background: var(--green); box-shadow: 0 0 8px var(--green);"></div>
+          <span class="ps-name">TURBO</span>
+          <span class="ps-desc">Maximum performance. Full display brightness, fastest response.</span>
+        </div>
+        <div class="power-state">
+          <div class="ps-indicator" style="background: var(--green);"></div>
+          <span class="ps-name">NORMAL</span>
+          <span class="ps-desc">Standard operating mode. Default state after activity.</span>
+        </div>
+        <div class="power-state">
+          <div class="ps-indicator" style="background: var(--accent);"></div>
+          <span class="ps-name">ECO</span>
+          <span class="ps-desc">Reduced brightness and polling rate to conserve power.</span>
+        </div>
+        <div class="power-state">
+          <div class="ps-indicator" style="background: var(--amber); opacity: 0.6;"></div>
+          <span class="ps-name">STANDBY</span>
+          <span class="ps-desc">Display dimmed. Minimal activity monitoring.</span>
+        </div>
+        <div class="power-state">
+          <div class="ps-indicator" style="background: var(--text-tertiary); opacity: 0.6;"></div>
+          <span class="ps-name">SLEEP</span>
+          <span class="ps-desc">Display off. Wake on physical input only.</span>
+        </div>
+        <div class="power-state">
+          <div class="ps-indicator" style="background: var(--text-tertiary); opacity: 0.3;"></div>
+          <span class="ps-name">OFF</span>
+          <span class="ps-desc">Fully powered down. Manual power-on required.</span>
+        </div>
+      </div>
+
+      <p class="fade-in" style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--space-lg);">
+        State transitions: TURBO &rarr; NORMAL &rarr; ECO &rarr; STANDBY &rarr; SLEEP &rarr; OFF.
+        Activity at any state returns to the current active level.
+      </p>
+    </section>
+
+    <!-- BLE Multi-Device -->
+    <section class="section container">
+      <div class="section-label fade-in">Connectivity</div>
+      <h2 class="fade-in">BLE Multi-Device</h2>
+      <p class="fade-in">
+        The k&middot;no&middot;b&middot;1 supports up to <strong>8 paired Bluetooth
+        devices</strong>. Each device occupies a numbered slot. Switch between
+        paired devices instantly using the <code>KI_CBT1</code>&ndash;<code>KI_CBT8</code>
+        keycodes, or initiate pairing with <code>KI_CBTP1</code>&ndash;<code>KI_CBTP8</code>.
+        Use <code>KI_CUSB</code> to switch back to the USB connection.
+      </p>
+
+      <div class="ble-grid fade-in">
+        <div class="ble-slot">
+          <div class="slot-num">1</div>
+          <div class="slot-switch">KI_CBT1</div>
+          <div class="slot-pair">KI_CBTP1</div>
+        </div>
+        <div class="ble-slot">
+          <div class="slot-num">2</div>
+          <div class="slot-switch">KI_CBT2</div>
+          <div class="slot-pair">KI_CBTP2</div>
+        </div>
+        <div class="ble-slot">
+          <div class="slot-num">3</div>
+          <div class="slot-switch">KI_CBT3</div>
+          <div class="slot-pair">KI_CBTP3</div>
+        </div>
+        <div class="ble-slot">
+          <div class="slot-num">4</div>
+          <div class="slot-switch">KI_CBT4</div>
+          <div class="slot-pair">KI_CBTP4</div>
+        </div>
+        <div class="ble-slot">
+          <div class="slot-num">5</div>
+          <div class="slot-switch">KI_CBT5</div>
+          <div class="slot-pair">KI_CBTP5</div>
+        </div>
+        <div class="ble-slot">
+          <div class="slot-num">6</div>
+          <div class="slot-switch">KI_CBT6</div>
+          <div class="slot-pair">KI_CBTP6</div>
+        </div>
+        <div class="ble-slot">
+          <div class="slot-num">7</div>
+          <div class="slot-switch">KI_CBT7</div>
+          <div class="slot-pair">KI_CBTP7</div>
+        </div>
+        <div class="ble-slot">
+          <div class="slot-num">8</div>
+          <div class="slot-switch">KI_CBT8</div>
+          <div class="slot-pair">KI_CBTP8</div>
+        </div>
+      </div>
+
+      <p class="fade-in" style="font-size: var(--text-sm); color: var(--text-secondary);">
+        Assign these keycodes to any button or encoder tap. A common pattern is to
+        use a dedicated layer for connectivity &mdash; one button per BLE slot, plus
+        a USB button.
+      </p>
+    </section>
+
+    <!-- Prev/Next -->
+    <section class="section container" style="padding-bottom: var(--space-2xl);">
+      <div style="display: flex; justify-content: space-between;">
+        <a href="display.html" style="font-family: var(--font-ui); font-size: var(--text-sm);">&larr; The Display</a>
+        <a href="tools.html" style="font-family: var(--font-ui); font-size: var(--text-sm);">Tools &rarr;</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>
+        Extending the Knob &mdash; an open research project.<br>
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+      <p>
+        Built with static HTML, CSS, and JS. No frameworks. No tracking.<br>
+        <a href="https://worklouder.cc/knob1" target="_blank" rel="noopener">worklouder.cc/knob1</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

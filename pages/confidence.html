@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confidence — Extending the Knob</title>
+  <meta name="description" content="An honest, evidence-based assessment of our understanding of the Work Louder k·no·b·1 at each level — from protocol visibility to full platform control.">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* --- Confidence Level Section --- */
+    .level-section {
+      padding: var(--space-2xl) 0;
+    }
+
+    .level-header {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .level-header .level-num {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .level-header h3 {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      margin-bottom: 0;
+    }
+
+    /* --- Evidence Lists --- */
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-lg);
+      margin-top: var(--space-xl);
+      margin-bottom: var(--space-lg);
+    }
+
+    .evidence-block {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+    }
+
+    .evidence-block h4 {
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-md);
+    }
+
+    .evidence-block.confirmed h4 {
+      color: var(--green);
+    }
+
+    .evidence-block.unverified h4 {
+      color: var(--amber);
+    }
+
+    .evidence-block ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .evidence-block li {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      padding: var(--space-xs) 0;
+      padding-left: var(--space-lg);
+      position: relative;
+      line-height: var(--leading-snug);
+    }
+
+    .evidence-block.confirmed li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.6em;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      opacity: 0.6;
+    }
+
+    .evidence-block.unverified li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.6em;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--amber);
+      opacity: 0.6;
+    }
+
+    .how-we-know {
+      font-size: var(--text-sm);
+      color: var(--text-tertiary);
+      font-style: italic;
+      margin-bottom: 0;
+    }
+
+    .how-we-know strong {
+      color: var(--text-secondary);
+      font-style: normal;
+    }
+
+    /* --- Roadmap --- */
+    .roadmap-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-lg);
+      margin-top: var(--space-xl);
+    }
+
+    .roadmap-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+    }
+
+    .roadmap-card h4 {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: var(--space-md);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .roadmap-card ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .roadmap-card li {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      padding: var(--space-xs) 0;
+      padding-left: var(--space-lg);
+      position: relative;
+      line-height: var(--leading-snug);
+    }
+
+    .roadmap-card li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.6em;
+      width: 6px;
+      height: 1px;
+      background: var(--text-tertiary);
+    }
+
+    /* --- Prev/Next Nav --- */
+    .prev-next {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--space-2xl) 0;
+    }
+
+    .prev-next a {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      transition: color var(--duration-fast) var(--ease-out);
+    }
+
+    .prev-next a:hover {
+      color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+      .evidence-grid { grid-template-columns: 1fr; }
+      .roadmap-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="../index.html" class="nav-logo">
+      <span class="dot"></span>
+      extending the knob
+    </a>
+    <ul class="nav-links">
+      <li><a href="hardware.html">Hardware</a></li>
+      <li><a href="protocol.html">Protocol</a></li>
+      <li><a href="display.html">Display</a></li>
+      <li><a href="sdk.html">SDK</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+      <li><a href="tools.html">Tools</a></li>
+      <li><a href="confidence.html">Confidence</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+
+    <!-- Hero -->
+    <section class="hero container">
+      <h4 class="fade-in">Confidence</h4>
+      <h1 class="fade-in">What We Know</h1>
+      <p class="subtitle fade-in">
+        An honest, evidence-based assessment of our understanding at each level.
+      </p>
+    </section>
+
+    <!-- Level 1: Protocol Visibility -->
+    <section class="section container">
+      <div class="section-label fade-in">Level 1</div>
+      <div class="level-header fade-in">
+        <span class="level-num">L1</span>
+        <h3>Protocol Visibility</h3>
+      </div>
+
+      <div class="confidence-bar fade-in">
+        <span class="label">Confidence</span>
+        <div class="track"><div class="fill green" data-value="98"></div></div>
+        <span class="value">98%</span>
+      </div>
+
+      <div class="evidence-grid stagger">
+        <div class="evidence-block confirmed fade-in">
+          <h4>Confirmed</h4>
+          <ul>
+            <li>Full HID packet format (64 bytes, 0x06 header, channel multiplexing)</li>
+            <li>All 17+ JSON-RPC methods documented</li>
+            <li>Legacy ASCII RPC protocol</li>
+            <li>Transport layer (USB HID + serial fallback)</li>
+            <li>Connection flow and device identification</li>
+          </ul>
+        </div>
+        <div class="evidence-block unverified fade-in">
+          <h4>Unverified</h4>
+          <ul>
+            <li>Edge cases in fragmentation with very large payloads</li>
+            <li>Error recovery behavior on timeout</li>
+            <li>Exact behavior of undocumented RPC error codes</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="how-we-know fade-in">
+        <strong>How we know:</strong> Static analysis of Input app v0.14.0 renderer (11&thinsp;MB)
+        and main process (2.5&thinsp;MB), community Linux port review, firmware binary strings analysis.
+      </p>
+    </section>
+
+    <!-- Level 2: Display Control -->
+    <section class="section container">
+      <div class="section-label fade-in">Level 2</div>
+      <div class="level-header fade-in">
+        <span class="level-num">L2</span>
+        <h3>Display Control</h3>
+      </div>
+
+      <div class="confidence-bar fade-in">
+        <span class="label">Confidence</span>
+        <div class="track"><div class="fill green" data-value="95"></div></div>
+        <span class="value">95%</span>
+      </div>
+
+      <div class="evidence-grid stagger">
+        <div class="evidence-block confirmed fade-in">
+          <h4>Confirmed</h4>
+          <ul>
+            <li>Display resolution: 100&times;310 pixels (k&middot;no&middot;b&middot;1), 170&times;320 (Nomad&nbsp;E)</li>
+            <li>Image format: LVGL v9, I8 indexed color, 256-entry ARGB8888 palette</li>
+            <li>File size: exactly 32,036 bytes per wallpaper</li>
+            <li>Conversion pipeline: PNG &rarr; resize &rarr; WASM LVGL converter &rarr; chunked upload</li>
+            <li>Full round-trip tested: PNG &rarr; LVGL &rarr; PNG</li>
+            <li>11 LVGL widgets compiled into firmware (arc, image, label, chart, menu, dropdown, roller, calendar, textarea, buttonmatrix, span)</li>
+            <li>Full animation system compiled in (<code>lv_anim_start</code>, style transitions, screen transitions)</li>
+            <li>Flex and Grid layout engines both available</li>
+            <li>Rotary encoder registered as LVGL input device (<code>lv_event_get_rotary_diff</code>)</li>
+            <li>5 firmware screens identified: home, wallpaper, selftest, bootloader, onboarding</li>
+            <li>Pomodoro timer events in firmware (<code>POMODORO_WORK_END</code>, <code>POMODORO_BREAK_END</code>)</li>
+            <li>Custom screens <strong>not possible</strong> without firmware modification &mdash; RPC surface only exposes wallpaper upload and accent color</li>
+            <li><strong>Display controller IC: ST7789</strong> &mdash; identified from firmware <code>TFT_eSPI::setRotation()</code> via Ghidra. MADCTL bytes (<code>0x00/0x60/0xC0/0xA0</code>) and per-dimension offsets (e.g. colstart=53, rowstart=40 for 135&times;240) match TFT_eSPI&rsquo;s <code>ST7789_Rotation.h</code> exactly; no other controller (ILI9341, GC9A01, ST7735, ST7796, HX8357) fits. Confirmed in both v0.3.1 and v0.3.2-rc.19 firmware builds.</li>
+          </ul>
+        </div>
+        <div class="evidence-block unverified fade-in">
+          <h4>Unverified</h4>
+          <ul>
+            <li>Display refresh rate and SPI clock speed</li>
+            <li>Whether wallpaper cycling hack (rapid <code>fs.writebin</code>) achieves usable frame rates (~2.5 FPS theoretical)</li>
+            <li>Which LVGL animation paths the firmware actually uses (vs. just compiled in)</li>
+            <li>Whether Pomodoro, Clock, Kebogotchi, and Media Player widgets (all shipped on Nomad&nbsp;E) will be ported to the k&middot;no&middot;b&middot;1 &mdash; they&rsquo;re native C widgets in firmware, so porting requires a firmware release</li>
+            <li>Whether <code>mp.*</code> RPC methods work on the knob (app feature matrix marks <code>mediaPlayer</code> as Nomad&nbsp;E only)</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="how-we-know fade-in">
+        <strong>How we know:</strong> WASM binary extraction from Input app, format reverse-engineered
+        from binary output analysis across multiple image sizes, app UI crop dimensions
+        (100&times;310 with aspect ratio 100/310). LVGL widget inventory from firmware binary
+        strings analysis (10,065 lines of extracted strings, cross-referenced with LVGL v9 source paths).
+        App renderer analysis of widget showcase UI (5 slots, 1 functional). Device feature matrix
+        extracted from app config explicitly maps features per device type &mdash; the knob gets
+        only <code>alert, wallpaper</code>; Nomad&nbsp;E gets <code>mediaPlayer, alert, wallpaper</code>.
+      </p>
+    </section>
+
+    <!-- Level 3: Behavioral Extension -->
+    <section class="section container">
+      <div class="section-label fade-in">Level 3</div>
+      <div class="level-header fade-in">
+        <span class="level-num">L3</span>
+        <h3>Behavioral Extension</h3>
+      </div>
+
+      <div class="confidence-bar fade-in">
+        <span class="label">Confidence</span>
+        <div class="track"><div class="fill green" data-value="95"></div></div>
+        <span class="value">95%</span>
+      </div>
+
+      <div class="evidence-grid stagger">
+        <div class="evidence-block confirmed fade-in">
+          <h4>Confirmed</h4>
+          <ul>
+            <li>Keymap stored as JSON on device filesystem (<code>keymap.json</code>)</li>
+            <li>Both default keymap JSON blobs <strong>extracted from firmware</strong> and validated as parseable JSON (2-encoder and 3-encoder variants)</li>
+            <li>Complete top-level schema: <code>version</code>, <code>activeProfileId</code>, <code>profiles[]</code>, <code>multiActions[]</code>, <code>macros[]</code></li>
+            <li>Profile schema: <code>name</code>, <code>id</code>, <code>layers[]</code>, <code>multiActionsUsed[]</code></li>
+            <li>Layer schema: <code>id</code>, <code>name</code>, <code>color</code> (24-bit int), <code>layout</code> (encoders / buttons / keymap arrays), <code>os</code></li>
+            <li>Multi-action schema: <code>id</code>, <code>name</code>, <code>kcOnTap</code>, <code>kcOnHold</code>, <code>kcOnDoubleTap</code>, <code>kcOnTapHold</code></li>
+            <li>Up to 15 layers &times; 15 profiles</li>
+            <li>Multi-actions: tap, hold, double-tap, tap-hold</li>
+            <li>Custom keycodes catalogued: BLE (8 slots), layers, profiles, lighting, multi-actions</li>
+            <li>Encoder per-layer CW/CCW/tap configuration verified in extracted JSON</li>
+          </ul>
+        </div>
+        <div class="evidence-block unverified fade-in">
+          <h4>Unverified</h4>
+          <ul>
+            <li>Full limits of the macro system (how many macros, steps per macro)</li>
+            <li>Maximum keymap.json file size the device can handle</li>
+            <li>Linked app configuration schema (<code>linkedApps</code>)</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="how-we-know fade-in">
+        <strong>How we know:</strong> Both default keymap JSON blobs extracted from the v0.3.2-rc.19
+        firmware binary at offsets <code>0x10735</code> and <code>0x1104d</code>. Parsed as JSON,
+        schema documented field-by-field. Keycode vocabulary confirmed by cross-referencing
+        firmware strings with the extracted keymap values.
+      </p>
+    </section>
+
+    <!-- Level 4: Full Platform Control -->
+    <section class="section container">
+      <div class="section-label fade-in">Level 4</div>
+      <div class="level-header fade-in">
+        <span class="level-num">L4</span>
+        <h3>Full Platform Control</h3>
+      </div>
+
+      <div class="confidence-bar fade-in">
+        <span class="label">Confidence</span>
+        <div class="track"><div class="fill amber" data-value="85"></div></div>
+        <span class="value">85%</span>
+      </div>
+
+      <div class="evidence-grid stagger">
+        <div class="evidence-block confirmed fade-in">
+          <h4>Confirmed</h4>
+          <ul>
+            <li>MCU: ESP32-S3 (Xtensa LX7, dual-core, 240&thinsp;MHz)</li>
+            <li><strong>Display controller IC: ST7789</strong> (Ghidra analysis of <code>TFT_eSPI::setRotation()</code>, verified across two firmware builds &mdash; removes a previously-blocking requirement for custom firmware)</li>
+            <li>No secure boot &mdash; <code>Secure version: 0</code> in app descriptor (esptool image-info)</li>
+            <li>No flash encryption &mdash; all partitions <code>flags: 0</code></li>
+            <li>Partition layout fully mapped (bootloader, factory 8&thinsp;MB, NVS 128&thinsp;KB, LittleFS 2&thinsp;MB, coredump 64&thinsp;KB)</li>
+            <li>Build system: PlatformIO + Arduino-ESP32 + ESP-IDF 5.3.2 (custom build)</li>
+            <li>Project name <code>nomad-e-fw</code> &mdash; codebase shared across devices</li>
+            <li>Unstripped ELF exists internally (SHA256 recorded) but not shipped</li>
+            <li>All linked libraries identified (LVGL, TFT_eSPI, NimBLE, TinyUSB, LittleFS, ArduinoJson, mbedTLS)</li>
+            <li>Firmware update via esptool (standard Espressif protocol)</li>
+            <li>Firmware module architecture documented (8 <code>wl-*</code> modules, plus new ones in v0.3.2: <code>wl_charger_controller</code>, <code>wl_rtc</code>, <code>wl_power1</code>, <code>comms_executor</code>)</li>
+            <li>Version diff v0.3.1&rarr;v0.3.2-rc.19 reveals active development: <code>host.focused_app</code> RPC, timer controller, joystick support, radial menu, WPM tracking (<code>kb_stats</code>)</li>
+            <li><strong>SDK architecture verified from official docs</strong>: <code>app.py</code> runs on the device in MicroPython v1.26.1 with full LVGL (481 bindings) access &mdash; lifecycle hooks (<code>start</code>, <code>update</code>, <code>on_event</code>, <code>end</code>), <code>wlsdk</code> module with 5 submodules (<code>ui</code>, <code>EVENT</code>, <code>time</code>, <code>sys</code>, <code>rpc</code>), hot reload with 2s debounce. Optional host-side <code>worker.py</code> runs in Pyodide for HTTP and subprocess. Nomad&nbsp;E only today; codebase shared (<code>nomad-e-fw</code>)</li>
+            <li>SDK source code is not published anywhere public &mdash; we only have the binaries. The auto-generated GitHub source archive for <code>sdk-alpha-0.1</code> contains only a 5-byte README</li>
+            <li>SDK is <strong>not secret</strong>, just unannounced: custom widgets were a
+              <a href="https://www.kickstarter.com/projects/nomade/nomad-e-by-work-louder" target="_blank" rel="noopener">Kickstarter roadmap promise</a>
+              from launch. Product reviews confirm Work Louder&rsquo;s intent to accept third-party widget submissions.
+              The 🤫 release notes reflect the alpha state, not concealment</li>
+            <li>Nomad&nbsp;E already ships with three native C widgets (Pomodoro, Kebogotchi, Clock) per reviews;
+              these were previously assumed to be preview-only mockups. Corrected via targeted Reddit/press/Instagram search</li>
+            <li>10 complete Python widget examples captured from the official
+              <a href="https://worklouder.notion.site/Examples-32d63f3bbc5a8039a772f2dbd2828b51" target="_blank" rel="noopener">Examples page</a>
+              &mdash; 4 full demos (Rainbow, RPC, BTC Tracker, Sys Stats) plus 6 from the Firmware-Side doc</li>
+          </ul>
+        </div>
+        <div class="evidence-block unverified fade-in">
+          <h4>Unverified</h4>
+          <ul>
+            <li>SPI pin mapping for TFT display</li>
+            <li>Battery IC model and I2C address</li>
+            <li>Exact LED count and GPIO mapping</li>
+            <li>Whether eFuse vendor data blocks custom firmware</li>
+            <li>Whether SDK firmware will port to k&middot;no&middot;b&middot;1 &mdash; and on what timeline</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="how-we-know fade-in">
+        <strong>How we know:</strong> Firmware binary analysis across 5 versions (v0.2.0 through v0.3.2-rc.19,
+        plus the SDK alpha for Nomad&nbsp;E) &mdash; partition table extraction,
+        <code>esptool image-info</code> on split app binary, strings analysis (10,000+ lines per version),
+        ESP-IDF app descriptor parsing, cross-version string diffing to identify newly-added modules and RPC
+        methods, and comparison of stock vs SDK firmware to catalog MicroPython bindings.
+      </p>
+    </section>
+
+    <!-- Methodology -->
+    <section class="section container">
+      <div class="section-label fade-in">Methodology</div>
+      <h2 class="fade-in">How Each Finding Was Obtained</h2>
+
+      <div class="pipeline stagger" style="margin-top: var(--space-xl);">
+        <div class="pipeline-step fade-in">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Electron App Extraction</h3>
+            <p>app.asar from Input v0.14.0 macOS DMG</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Community Linux Port</h3>
+            <p><a href="https://github.com/worklouder/input-linux" target="_blank" rel="noopener">worklouder/input-linux</a> GitHub repo</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>WASM Binary Extraction</h3>
+            <p>Base64-encoded 1.7&thinsp;MB WASM from main process JS</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h3>Firmware Strings Analysis</h3>
+            <p>v0.3.1 merged.bin (1.4 MB) &mdash; strings dump yielded 10,065 lines with C++ symbols, source paths, and LVGL internals</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <h3>GitHub Org Inventory</h3>
+            <p>All 8 repos in the worklouder GitHub org catalogued, including the <code>input-releases-internal</code> experiments repo</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <h3>esptool image-info</h3>
+            <p>App binary split from merged firmware at offset <code>0x10000</code>. ESP-IDF app descriptor revealed project name <code>nomad-e-fw</code>, secure version <code>0</code>, compile timestamp, and ELF SHA256</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">7</div>
+          <div class="step-content">
+            <h3>Cross-Version String Diff</h3>
+            <p>5 firmware versions (v0.2.0, v0.3.0, v0.3.1, v0.3.2-rc.19, plus Nomad&nbsp;E v0.9.0) extracted and diffed. New modules, RPC methods, and screens identified by version delta</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">8</div>
+          <div class="step-content">
+            <h3>SDK Firmware &amp; App Comparison</h3>
+            <p>The SDK alpha firmware for Nomad&nbsp;E (<code>firmware_v0.9.0-sdk.1</code>) was compared string-by-string against stock v0.9.0. The diff revealed 383 new LVGL Python bindings and MicroPython v1.26.1 embedded. The accompanying Input app (<code>input-0.15.0-sdk.1</code>) was then extracted and analyzed for the host-side portion of the architecture.</p>
+          </div>
+        </div>
+        <div class="pipeline-step fade-in">
+          <div class="step-num">9</div>
+          <div class="step-content">
+            <h3>Browser-Automated Doc Capture</h3>
+            <p>Work Louder&rsquo;s official SDK documentation is hosted on <a href="https://worklouder.notion.site/sdk-docs" target="_blank" rel="noopener">Notion</a> and renders client-side, defeating basic HTTP fetches. We used Playwright + headless Chromium to render, scroll, and extract content from all five sub-pages (main, WL SDK, Input Side, Firmware Side, Examples). The authoritative docs corrected our earlier code-based inference of the SDK architecture &mdash; <code>app.py</code> runs on the device, not the host.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What's Next -->
+    <section class="section container">
+      <div class="section-label fade-in">Roadmap</div>
+      <h2 class="fade-in">What&rsquo;s Next</h2>
+
+      <div class="roadmap-grid stagger">
+        <div class="roadmap-card fade-in">
+          <h4>Pre-Device</h4>
+          <ul>
+            <li><s>Ghidra disassembly for display IC</s> &mdash; <strong>done: ST7789</strong> (see <a href="hardware.html">Hardware</a>)</li>
+            <li>Firmware-level diff: stock vs SDK firmware (Ghidra) &mdash; quantify SDK port effort</li>
+            <li>Monitor knob-fw-releases for SDK port</li>
+            <li>Keymap schema documentation</li>
+            <li>Join Discord (8,400+ members) &mdash; ask about SDK timeline</li>
+          </ul>
+        </div>
+        <div class="roadmap-card fade-in">
+          <h4>Day 1 with Device</h4>
+          <ul>
+            <li>Run <a href="tools.html">worklouder-probe</a> &mdash; 10-phase non-destructive validation harness already built</li>
+            <li>Optional flash dump via the probe&rsquo;s <code>flash-dump.sh</code></li>
+            <li>USB descriptor enumeration (included in probe phase 2)</li>
+            <li>Mount LittleFS partition offline to inspect device files</li>
+          </ul>
+        </div>
+        <div class="roadmap-card fade-in">
+          <h4>Week 1</h4>
+          <ul>
+            <li>BLE descriptor capture</li>
+            <li>Protocol traffic capture with official Input app</li>
+            <li>Confirm SPI pin mapping for the ST7789 on real hardware</li>
+            <li>Test wallpaper cycling hack (measured FPS)</li>
+          </ul>
+        </div>
+        <div class="roadmap-card fade-in">
+          <h4>Paths Forward</h4>
+          <ul>
+            <li>Wait for SDK port to k&middot;no&middot;b&middot;1 (highest EV)</li>
+            <li>Experimentally flash Nomad E SDK firmware (risky)</li>
+            <li>Fork the SDK and port to k&middot;no&middot;b&middot;1 ourselves (requires source access or reverse engineering)</li>
+            <li>Build minimal custom firmware from scratch</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="prev-next fade-in">
+        <a href="tools.html">&larr; Tools</a>
+        <span></span>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>
+        Extending the Knob &mdash; an open research project.<br>
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+      <p>
+        Built with static HTML, CSS, and JS. No frameworks. No tracking.<br>
+        <a href="https://worklouder.cc/knob1" target="_blank" rel="noopener">worklouder.cc/knob1</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hardware — Extending the Knob</title>
+  <meta name="description" content="Hardware architecture of the Work Louder k·no·b·1: ESP32-S3 SoC, flash memory map, firmware modules, power management, and linked libraries.">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* --- State Diagram --- */
+    .state-diagram {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+      padding: var(--space-lg) 0;
+      margin-bottom: var(--space-xl);
+    }
+
+    .state-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-xs);
+      flex-shrink: 0;
+    }
+
+    .state-node .state-box {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: var(--space-sm) var(--space-md);
+      border-radius: 6px;
+      border: 1px solid var(--surface-border);
+      background: var(--surface);
+      color: var(--text);
+      transition: all var(--duration-fast) var(--ease-out);
+      white-space: nowrap;
+    }
+
+    .state-node .state-box:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .state-node .state-label {
+      font-family: var(--font-ui);
+      font-size: 0.65rem;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .state-arrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      padding: 0 var(--space-sm);
+      flex-shrink: 0;
+    }
+
+    /* --- Memory region description --- */
+    .memory-region .desc {
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      margin-left: auto;
+      text-align: right;
+      max-width: 280px;
+    }
+
+    /* --- Links list --- */
+    .link-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .link-list li {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .link-list li::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .link-list a {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+    }
+
+    .link-list .link-desc {
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      margin-left: var(--space-xs);
+    }
+
+    @media (max-width: 768px) {
+      .state-diagram { flex-wrap: wrap; gap: var(--space-sm); justify-content: center; }
+      .state-arrow { display: none; }
+      .memory-region .desc { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="../index.html" class="nav-logo">
+      <span class="dot"></span>
+      extending the knob
+    </a>
+    <ul class="nav-links">
+      <li><a href="hardware.html" class="active">Hardware</a></li>
+      <li><a href="protocol.html">Protocol</a></li>
+      <li><a href="display.html">Display</a></li>
+      <li><a href="sdk.html">SDK</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+      <li><a href="tools.html">Tools</a></li>
+      <li><a href="confidence.html">Confidence</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+
+    <!-- Hero -->
+    <section class="hero container">
+      <h4 class="fade-in">Hardware Architecture</h4>
+      <h1 class="fade-in">What the Silicon Looks&nbsp;Like</h1>
+      <p class="subtitle fade-in">
+        The k&middot;no&middot;b&middot;1 is built around an ESP32-S3 SoC by
+        Espressif Systems &mdash; a dual-core Xtensa LX7 running at 240&nbsp;MHz
+        with integrated Wi-Fi and Bluetooth&nbsp;LE. This page maps the hardware
+        platform, flash layout, firmware modules, and power states.
+      </p>
+    </section>
+
+    <!-- Section 2: Component Map -->
+    <section class="section container">
+      <div class="section-label fade-in">Components</div>
+      <h2 class="fade-in">Component Map</h2>
+      <p class="fade-in">
+        Every major subsystem on the board, from the processor to the LEDs.
+        Each component was identified through firmware string analysis and
+        library cross-referencing.
+      </p>
+
+      <div class="card-grid stagger" style="margin-top: var(--space-2xl);">
+        <div class="card fade-in">
+          <h3>ESP32-S3 MCU</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            Dual-core Xtensa LX7, 240&nbsp;MHz clock, 40&nbsp;MHz crystal.
+            Up to 16&nbsp;MB flash, optional PSRAM (2&nbsp;MB or 8&nbsp;MB).
+            The heart of the device.
+          </p>
+        </div>
+
+        <div class="card fade-in">
+          <h3>TFT Display</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            100&times;310 pixel TFT on an SPI bus, driven by the TFT_eSPI library.
+            Controller IC: <strong>ST7789</strong> (identified from firmware
+            <code>setRotation()</code> via Ghidra &mdash; MADCTL byte pattern and per-dimension offset values match TFT_eSPI&rsquo;s ST7789 driver exactly).
+            Rendered through LVGL&nbsp;v9. See the
+            <a href="display.html">Display</a> page for the image pipeline.
+          </p>
+        </div>
+
+        <div class="card fade-in">
+          <h3>Rotary Encoders</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            Two rotary encoders with integrated push buttons. Used for volume,
+            scrolling, and layer-specific actions defined in the keymap.
+          </p>
+        </div>
+
+        <div class="card fade-in">
+          <h3>Mechanical Switches</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            Hot-swap mechanical key switches. Standard MX-compatible sockets
+            allow swapping switches without soldering.
+          </p>
+        </div>
+
+        <div class="card fade-in">
+          <h3>RGB LEDs</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            WS2812-compatible addressable LEDs driven via the ESP32-S3 RMT
+            peripheral. Per-key and underglow lighting with configurable
+            effects.
+          </p>
+        </div>
+
+        <div class="card fade-in">
+          <h3>Battery System</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            LiPo battery with an I&sup2;C fuel gauge IC for accurate charge
+            level reporting. Powers wireless (BLE) operation.
+          </p>
+        </div>
+
+        <div class="card fade-in">
+          <h3>USB-C</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            TinyUSB stack exposing HID keyboard, consumer control, and
+            vendor-specific endpoints. Also used for firmware updates and
+            <a href="protocol.html">JSON-RPC communication</a>.
+          </p>
+        </div>
+
+        <div class="card fade-in">
+          <h3>Bluetooth</h3>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 0;">
+            NimBLE stack (Apache), BLE&nbsp;5.0 with HID over GATT (HOGP).
+            Supports up to 8 paired devices with profile-based slot
+            switching.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Flash Memory Map -->
+    <section class="section container">
+      <div class="section-label fade-in">Flash Layout</div>
+      <h2 class="fade-in">Flash Memory Map</h2>
+      <p class="fade-in">
+        The 16&nbsp;MB flash is divided into seven partitions. The factory
+        application occupies the lion&rsquo;s share at 8&nbsp;MB. There is no
+        OTA partition &mdash; updates are performed via the bootloader and
+        <code>esptool</code>. The bars below are proportional to actual size.
+      </p>
+
+      <div class="memory-map fade-in" style="margin-top: var(--space-2xl);">
+
+        <!-- Bootloader: 32 KB = 0.2% of 16 MB -->
+        <div class="memory-region">
+          <span class="offset">0x0000</span>
+          <div class="bar" style="width: 2%; min-width: 6px; background: var(--text-tertiary);"></div>
+          <span class="name">Bootloader</span>
+          <span class="size">32 KB</span>
+          <span class="desc">ESP32-S3 second-stage bootloader</span>
+        </div>
+
+        <!-- Partition Table: 4 KB -->
+        <div class="memory-region">
+          <span class="offset">0x8000</span>
+          <div class="bar" style="width: 1%; min-width: 4px; background: var(--text-tertiary);"></div>
+          <span class="name">Partition Table</span>
+          <span class="size">4 KB</span>
+          <span class="desc">Defines flash layout</span>
+        </div>
+
+        <!-- phy_init: 4 KB -->
+        <div class="memory-region">
+          <span class="offset">0xF000</span>
+          <div class="bar" style="width: 1%; min-width: 4px; background: var(--text-tertiary);"></div>
+          <span class="name">phy_init</span>
+          <span class="size">4 KB</span>
+          <span class="desc">WiFi/BLE PHY calibration data</span>
+        </div>
+
+        <!-- factory: 8 MB = 50% of 16 MB -->
+        <div class="memory-region">
+          <span class="offset">0x10000</span>
+          <div class="bar" style="width: 50%; background: var(--blue);"></div>
+          <span class="name">factory</span>
+          <span class="size">8 MB</span>
+          <span class="desc">Main application firmware</span>
+        </div>
+
+        <!-- nvs: 128 KB -->
+        <div class="memory-region">
+          <span class="offset">0x810000</span>
+          <div class="bar" style="width: 2%; min-width: 6px; background: var(--accent);"></div>
+          <span class="name">nvs</span>
+          <span class="size">128 KB</span>
+          <span class="desc">Non-volatile storage (settings, BLE bonds)</span>
+        </div>
+
+        <!-- fs (LittleFS): 2 MB = 12.5% -->
+        <div class="memory-region">
+          <span class="offset">0x830000</span>
+          <div class="bar" style="width: 12.5%; background: var(--green);"></div>
+          <span class="name">fs (LittleFS)</span>
+          <span class="size">2 MB</span>
+          <span class="desc">User filesystem: keymap.json, wallpaper_bg.bin</span>
+        </div>
+
+        <!-- coredump: 64 KB -->
+        <div class="memory-region">
+          <span class="offset">0xA30000</span>
+          <div class="bar" style="width: 1.5%; min-width: 6px; background: var(--red);"></div>
+          <span class="name">coredump</span>
+          <span class="size">64 KB</span>
+          <span class="desc">Crash dump storage</span>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Section 4: Firmware Architecture -->
+    <section class="section container">
+      <div class="section-label fade-in">Firmware</div>
+      <h2 class="fade-in">Firmware Architecture</h2>
+      <p class="fade-in">
+        The firmware is built with PlatformIO using Arduino-ESP32 on top of
+        ESP-IDF&nbsp;5.3.2. It was developed by Cristian Duciuc
+        (<a href="https://github.com/TheCrypt0" target="_blank" rel="noopener">TheCrypt0</a>)
+        on macOS.
+      </p>
+
+      <div class="card fade-in" style="margin-top: var(--space-xl); margin-bottom: var(--space-2xl);">
+        <h3>Key Facts</h3>
+        <ul style="list-style: none; font-size: var(--text-sm); color: var(--text-secondary); display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: 0;">
+          <li style="display: flex; align-items: baseline; gap: var(--space-sm);">
+            <span style="color: var(--red); font-weight: 600;">&mdash;</span>
+            No secure boot enabled
+          </li>
+          <li style="display: flex; align-items: baseline; gap: var(--space-sm);">
+            <span style="color: var(--red); font-weight: 600;">&mdash;</span>
+            No flash encryption
+          </li>
+          <li style="display: flex; align-items: baseline; gap: var(--space-sm);">
+            <span style="color: var(--red); font-weight: 600;">&mdash;</span>
+            No OTA partition (single factory slot, updates via bootloader + esptool)
+          </li>
+          <li style="display: flex; align-items: baseline; gap: var(--space-sm);">
+            <span style="color: var(--accent); font-weight: 600;">&mdash;</span>
+            Built with PlatformIO + Arduino-ESP32 + ESP-IDF 5.3.2 (custom build, Feb&nbsp;10&nbsp;2025)
+          </li>
+          <li style="display: flex; align-items: baseline; gap: var(--space-sm);">
+            <span style="color: var(--blue); font-weight: 600;">&mdash;</span>
+            Project name <code>nomad-e-fw</code> &mdash; codebase shared across k&middot;no&middot;b&middot;1, Nomad&nbsp;E, and Creator Micro v2. Cross-device string diff shows <strong>~83% code overlap</strong> between knob-fw v0.3.2-rc.19 and nomad-e-fw v0.9.0 (1,823 of 2,179 meaningful strings shared). Device-specific divergences are primarily media player (Nomad only), encoder count, and display geometry
+          </li>
+          <li style="display: flex; align-items: baseline; gap: var(--space-sm);">
+            <span style="color: var(--text-secondary); font-weight: 600;">&mdash;</span>
+            Unstripped ELF exists internally (SHA256 recorded in app descriptor) but is not shipped publicly
+          </li>
+          <li style="display: flex; align-items: baseline; gap: var(--space-sm);">
+            <span style="color: var(--accent); font-weight: 600;">&mdash;</span>
+            A parallel SDK firmware with MicroPython runtime exists (Nomad&nbsp;E only). The ESP32-S3 runs user-written <code>app.py</code> directly in MicroPython with full LVGL access. An optional host-side <code>worker.py</code> runs in Pyodide for HTTP and subprocess. See <a href="sdk.html">SDK</a>
+          </li>
+        </ul>
+      </div>
+
+      <h3 class="fade-in">Module Map</h3>
+      <p class="fade-in">
+        The firmware is organized into eight core library modules, each with a
+        well-defined responsibility.
+      </p>
+
+      <div class="table-wrap fade-in" style="margin-top: var(--space-lg);">
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Source Path</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>wl-rpc</strong></td>
+              <td><code>core_libs/core/wl-rpc/</code></td>
+              <td>JSON-RPC handler and dispatch</td>
+            </tr>
+            <tr>
+              <td><strong>wl-comms</strong></td>
+              <td><code>core_libs/core/wl-comms/</code></td>
+              <td>Communication manager (BLE + USB)</td>
+            </tr>
+            <tr>
+              <td><strong>wl-kb</strong></td>
+              <td><code>core_libs/core/wl-kb/</code></td>
+              <td>Keyboard/keymapper engine</td>
+            </tr>
+            <tr>
+              <td><strong>wl-display</strong></td>
+              <td><code>core_libs/core/wl-display/</code></td>
+              <td>Display renderer + indexed screen manager. 11 LVGL widgets, flex/grid layouts, animation system. 5 screens: home, wallpaper, selftest, bootloader, onboarding. See <a href="display.html">Display</a>.</td>
+            </tr>
+            <tr>
+              <td><strong>wl-lumiere</strong></td>
+              <td><code>core_libs/core/wl-lumiere/</code></td>
+              <td>LED/lighting controller</td>
+            </tr>
+            <tr>
+              <td><strong>wl-pm</strong></td>
+              <td><code>core_libs/core/wl-pm/</code></td>
+              <td>Power management state machine</td>
+            </tr>
+            <tr>
+              <td><strong>wl-fs</strong></td>
+              <td><code>core_libs/core/wl-fs/</code></td>
+              <td>Filesystem abstraction (LittleFS)</td>
+            </tr>
+            <tr>
+              <td><strong>wl-log</strong></td>
+              <td><code>core_libs/core/wl-log/</code></td>
+              <td>Logging system</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 5: Power Management -->
+    <section class="section container">
+      <div class="section-label fade-in">Power</div>
+      <h2 class="fade-in">Power Management</h2>
+      <p class="fade-in">
+        The <code>wl-pm</code> module manages six power states with configurable
+        timeouts. Any user activity (keypress, encoder rotation, USB event) resets
+        the device to TURBO or NORMAL. The state machine cascades downward through
+        increasingly aggressive power savings.
+      </p>
+
+      <div class="state-diagram fade-in" style="margin-top: var(--space-xl);">
+        <div class="state-node">
+          <div class="state-box" style="border-color: var(--accent); color: var(--accent);">TURBO</div>
+          <span class="state-label">Full power</span>
+        </div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node">
+          <div class="state-box">NORMAL</div>
+          <span class="state-label">Active</span>
+        </div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node">
+          <div class="state-box">ECO</div>
+          <span class="state-label">Reduced</span>
+        </div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node">
+          <div class="state-box">STANDBY</div>
+          <span class="state-label">Display off</span>
+        </div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node">
+          <div class="state-box">SLEEP</div>
+          <span class="state-label">Deep sleep</span>
+        </div>
+        <span class="state-arrow">&rarr;</span>
+        <div class="state-node">
+          <div class="state-box" style="border-color: var(--red); color: var(--red);">OFF</div>
+          <span class="state-label">Shutdown</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Libraries & Dependencies -->
+    <section class="section container">
+      <div class="section-label fade-in">Dependencies</div>
+      <h2 class="fade-in">Libraries &amp; Dependencies</h2>
+      <p class="fade-in">
+        Libraries linked in the firmware binary, identified through string
+        extraction and symbol analysis.
+      </p>
+
+      <div class="table-wrap fade-in" style="margin-top: var(--space-lg);">
+        <table>
+          <thead>
+            <tr>
+              <th>Library</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>ESP-IDF 5.3.2</strong></td>
+              <td>Core framework</td>
+            </tr>
+            <tr>
+              <td><strong>Arduino-ESP32</strong></td>
+              <td>Arduino compatibility layer</td>
+            </tr>
+            <tr>
+              <td><strong>FreeRTOS</strong></td>
+              <td>Real-time operating system</td>
+            </tr>
+            <tr>
+              <td><strong>LVGL</strong></td>
+              <td>Display widget toolkit</td>
+            </tr>
+            <tr>
+              <td><strong>TFT_eSPI</strong></td>
+              <td>TFT display driver (SPI)</td>
+            </tr>
+            <tr>
+              <td><strong>NimBLE</strong></td>
+              <td>BLE stack</td>
+            </tr>
+            <tr>
+              <td><strong>TinyUSB</strong></td>
+              <td>USB device stack</td>
+            </tr>
+            <tr>
+              <td><strong>LittleFS</strong></td>
+              <td>Flash filesystem</td>
+            </tr>
+            <tr>
+              <td><strong>ArduinoJson</strong></td>
+              <td>JSON serialization</td>
+            </tr>
+            <tr>
+              <td><strong>mbedTLS</strong></td>
+              <td>Cryptography (AES, SHA, etc.)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 7: External Links -->
+    <section class="section container">
+      <div class="section-label fade-in">References</div>
+      <h2 class="fade-in">External Links</h2>
+      <p class="fade-in">
+        Datasheets, source repositories, and documentation for the major
+        components and libraries used in the k&middot;no&middot;b&middot;1.
+      </p>
+
+      <ul class="link-list fade-in" style="margin-top: var(--space-xl);">
+        <li>
+          <a href="https://www.espressif.com/en/products/socs/esp32-s3" target="_blank" rel="noopener">ESP32-S3 Datasheet</a>
+          <span class="link-desc">&mdash; Espressif Systems</span>
+        </li>
+        <li>
+          <a href="https://github.com/Bodmer/TFT_eSPI" target="_blank" rel="noopener">TFT_eSPI</a>
+          <span class="link-desc">&mdash; TFT display driver library</span>
+        </li>
+        <li>
+          <a href="https://github.com/apache/mynewt-nimble" target="_blank" rel="noopener">NimBLE</a>
+          <span class="link-desc">&mdash; Apache BLE stack</span>
+        </li>
+        <li>
+          <a href="https://github.com/hathach/tinyusb" target="_blank" rel="noopener">TinyUSB</a>
+          <span class="link-desc">&mdash; USB device stack</span>
+        </li>
+        <li>
+          <a href="https://github.com/littlefs-project/littlefs" target="_blank" rel="noopener">LittleFS</a>
+          <span class="link-desc">&mdash; Flash filesystem</span>
+        </li>
+        <li>
+          <a href="https://lvgl.io" target="_blank" rel="noopener">LVGL</a>
+          <span class="link-desc">&mdash; Display widget toolkit</span>
+        </li>
+        <li>
+          <a href="https://platformio.org" target="_blank" rel="noopener">PlatformIO</a>
+          <span class="link-desc">&mdash; Build system</span>
+        </li>
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>
+        Extending the Knob &mdash; an open research project.<br>
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+      <p>
+        Built with static HTML, CSS, and JS. No frameworks. No tracking.<br>
+        <a href="https://worklouder.cc/knob1" target="_blank" rel="noopener">worklouder.cc/knob1</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

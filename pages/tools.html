@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tools — Extending the Knob</title>
+  <meta name="description" content="A proof-of-concept CLI tool for discovering, connecting to, querying, and controlling the Work Louder k·no·b·1 from the command line.">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* --- Command Group --- */
+    .cmd-group {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .cmd-group h3 {
+      font-family: var(--font-ui);
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: var(--space-lg);
+    }
+
+    .cmd-entry {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      transition: border-color var(--duration) var(--ease-out);
+    }
+
+    .cmd-entry:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .cmd-entry .cmd-signature {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--accent);
+      margin-bottom: var(--space-sm);
+    }
+
+    .cmd-entry .cmd-desc {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      margin-bottom: 0;
+    }
+
+    /* --- Architecture Modules --- */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--space-md);
+      margin-top: var(--space-xl);
+    }
+
+    .arch-module {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: var(--space-lg) var(--space-xl);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-lg);
+    }
+
+    .arch-module .module-file {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--accent);
+      background: var(--accent-dim);
+      padding: var(--space-xs) var(--space-sm);
+      border-radius: 4px;
+      flex-shrink: 0;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .arch-module .module-desc {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      margin-bottom: 0;
+    }
+
+    /* --- Prerequisites --- */
+    .prereq {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .prereq-item {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 4px;
+      padding: var(--space-xs) var(--space-md);
+    }
+
+    /* --- Prev/Next Nav --- */
+    .prev-next {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--space-2xl) 0;
+    }
+
+    .prev-next a {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      transition: color var(--duration-fast) var(--ease-out);
+    }
+
+    .prev-next a:hover {
+      color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+      .arch-module { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="../index.html" class="nav-logo">
+      <span class="dot"></span>
+      extending the knob
+    </a>
+    <ul class="nav-links">
+      <li><a href="hardware.html">Hardware</a></li>
+      <li><a href="protocol.html">Protocol</a></li>
+      <li><a href="display.html">Display</a></li>
+      <li><a href="sdk.html">SDK</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+      <li><a href="tools.html">Tools</a></li>
+      <li><a href="confidence.html">Confidence</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+
+    <!-- Hero -->
+    <section class="hero container">
+      <h4 class="fade-in">Tools</h4>
+      <h1 class="fade-in">Two Tools We Built</h1>
+      <p class="subtitle fade-in">
+        <strong>knob-cli</strong> is the control surface &mdash; a CLI for discovering, connecting
+        to, querying, and commanding the k&middot;no&middot;b&middot;1. <strong>worklouder-probe</strong>
+        is the test surface &mdash; a ten-phase validation harness that runs on a real device and
+        emits a structured report. Together they cover both day-to-day operation and empirical
+        protocol verification.
+      </p>
+    </section>
+
+    <!-- Installation -->
+    <section class="section container">
+      <div class="section-label fade-in">Installation</div>
+      <h2 class="fade-in">Getting Started</h2>
+
+      <pre class="fade-in"><code>git clone https://github.com/malpern/extending-the-knob.git
+cd knob-cli
+npm install</code></pre>
+
+      <div class="prereq fade-in">
+        <span class="prereq-item">Node.js 18+</span>
+        <span class="prereq-item">npm</span>
+      </div>
+
+      <p class="fade-in" style="font-size: var(--text-sm); color: var(--text-secondary);">
+        <strong>Dependencies:</strong> node-hid, sharp, commander
+      </p>
+    </section>
+
+    <!-- Commands -->
+    <section class="section container">
+      <div class="section-label fade-in">Reference</div>
+      <h2 class="fade-in">Commands</h2>
+
+      <!-- Discovery -->
+      <div class="cmd-group fade-in">
+        <h3>Discovery</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js scan</div>
+          <p class="cmd-desc">Find connected devices</p>
+        </div>
+      </div>
+
+      <!-- Device Info -->
+      <div class="cmd-group fade-in">
+        <h3>Device Info</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js status</div>
+          <p class="cmd-desc">Firmware, battery, profile, layer</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js version</div>
+          <p class="cmd-desc">Firmware version</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js screen</div>
+          <p class="cmd-desc">Current active screen</p>
+        </div>
+      </div>
+
+      <!-- Filesystem -->
+      <div class="cmd-group fade-in">
+        <h3>Filesystem</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js ls</div>
+          <p class="cmd-desc">List files on device</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js read &lt;file&gt; [-o output]</div>
+          <p class="cmd-desc">Read file from device</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js write &lt;file&gt; &lt;local&gt;</div>
+          <p class="cmd-desc">Write file to device</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js rm &lt;file&gt;</div>
+          <p class="cmd-desc">Delete file</p>
+        </div>
+      </div>
+
+      <!-- Wallpaper -->
+      <div class="cmd-group fade-in">
+        <h3>Wallpaper</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js wallpaper-upload &lt;image&gt;</div>
+          <p class="cmd-desc">Upload wallpaper (auto-resizes to 100&times;310)</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js wallpaper-download &lt;output&gt;</div>
+          <p class="cmd-desc">Download wallpaper as PNG</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js wallpaper-delete</div>
+          <p class="cmd-desc">Remove wallpaper</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js wallpaper-preview &lt;input&gt; &lt;output&gt;</div>
+          <p class="cmd-desc">Offline conversion test</p>
+        </div>
+      </div>
+
+      <!-- Configuration -->
+      <div class="cmd-group fade-in">
+        <h3>Configuration</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js keymap-download &lt;output&gt;</div>
+          <p class="cmd-desc">Download keymap.json</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js keymap-upload &lt;json&gt;</div>
+          <p class="cmd-desc">Upload keymap.json</p>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="cmd-group fade-in">
+        <h3>Display</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js accent &lt;color&gt;</div>
+          <p class="cmd-desc">Set accent color (hex) &mdash; <code>ui.home_accent_color</code></p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js now-playing -t "Title" -a "Artist"</div>
+          <p class="cmd-desc">Set now-playing info &mdash; <code>mp.write_info</code></p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js album-art &lt;image&gt;</div>
+          <p class="cmd-desc">Send album art (auto-resized 80&times;80) &mdash; <code>mp.write_artwork</code></p>
+        </div>
+      </div>
+
+      <!-- System -->
+      <div class="cmd-group fade-in">
+        <h3>System</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js bootloader</div>
+          <p class="cmd-desc">Reboot into ESP32 bootloader &mdash; <code>sys.bootloader</code></p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js selftest</div>
+          <p class="cmd-desc">Enter device self-test screen &mdash; <code>sys.selftest</code></p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js diagnostics</div>
+          <p class="cmd-desc">Get uptime, heap, CPU, tasks &mdash; <code>sentry.get</code></p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js checksum &lt;file&gt;</div>
+          <p class="cmd-desc">Get file checksum &mdash; <code>fs.chksm</code></p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js format --yes</div>
+          <p class="cmd-desc"><strong style="color: var(--red);">DESTRUCTIVE</strong> format filesystem &mdash; <code>fs.format</code></p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js focused-app &lt;json&gt;</div>
+          <p class="cmd-desc">Tell device which app is focused &mdash; <code>host.focused_app</code></p>
+        </div>
+      </div>
+
+      <!-- Reference + Raw Access -->
+      <div class="cmd-group fade-in">
+        <h3>Reference &amp; Raw Access</h3>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js methods</div>
+          <p class="cmd-desc">Print a reference of all 23 known RPC methods with params, returns, and descriptions</p>
+        </div>
+        <div class="cmd-entry">
+          <div class="cmd-signature">node index.js rpc &lt;method&gt; [params]</div>
+          <p class="cmd-desc">Send a raw JSON-RPC call with arbitrary method and params</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="section container">
+      <div class="section-label fade-in">Internals</div>
+      <h2 class="fade-in">Architecture</h2>
+      <p class="fade-in">
+        Three modules, each handling a distinct responsibility.
+      </p>
+
+      <div class="arch-grid stagger">
+        <div class="arch-module fade-in">
+          <span class="module-file">protocol.js</span>
+          <p class="module-desc">HID communication, packet framing, RPC layer, command queue</p>
+        </div>
+        <div class="arch-module fade-in">
+          <span class="module-file">lvgl.js</span>
+          <p class="module-desc">WASM wrapper for LVGL image conversion</p>
+        </div>
+        <div class="arch-module fade-in">
+          <span class="module-file">index.js</span>
+          <p class="module-desc">CLI commands via Commander.js</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- worklouder-probe -->
+    <section class="section container">
+      <div class="section-label fade-in">Second Tool</div>
+      <h2 class="fade-in">worklouder-probe</h2>
+      <p class="fade-in">
+        A companion validation harness built for hands-on testing on a real device.
+        Where <code>knob-cli</code> is the control surface, <code>worklouder-probe</code>
+        is the test surface. It runs ten phases in sequence &mdash; discovery, USB descriptor
+        dump, identity, filesystem inspection, protocol validation, wallpaper round-trip
+        (with automatic backup and restore), performance timing, SDK detection probe,
+        keymap backup, and Bluetooth scan &mdash; and writes a structured markdown report.
+      </p>
+
+      <p class="fade-in">
+        Non-destructive by default: the one phase that touches device state (the wallpaper
+        round-trip) backs up the original before uploading the test image and restores it
+        after. A <code>--no-upload</code> flag disables even that, making it fully read-only.
+      </p>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">What Each Phase Validates</h3>
+
+      <div class="table-wrap fade-in">
+        <table>
+          <thead><tr><th>Phase</th><th>Validates</th></tr></thead>
+          <tbody>
+            <tr><td>1. Discovery</td><td>VID <code>0x303A</code>, PIDs <code>0x5555/0x8296/0x82E3</code>, HID usage page <code>0xFF00</code></td></tr>
+            <tr><td>2. USB Descriptor</td><td>Real HID report descriptor, endpoint layout, enumerated interfaces (via <code>system_profiler</code>)</td></tr>
+            <tr><td>3. Identity</td><td><code>sys.version</code>, <code>device.status</code>, <code>ui.active_screen</code>, <code>sentry.get</code></td></tr>
+            <tr><td>4. Filesystem</td><td><code>fs.list</code> with checksums &mdash; reveals files we don&rsquo;t know about</td></tr>
+            <tr><td>5. Protocol Validation</td><td>Probes 10 RPC methods, records exact responses and error codes</td></tr>
+            <tr><td>6. Wallpaper Round-Trip</td><td>Full HID transport + chunked binary protocol + LVGL format &mdash; byte-for-byte verified</td></tr>
+            <tr><td>7. Performance</td><td>20-sample RPC latency, throughput, fs.list timing</td></tr>
+            <tr><td>8. SDK Probe</td><td>Tests 5 <code>wlsdk.*</code> method variations &mdash; confirms whether MicroPython runtime is active</td></tr>
+            <tr><td>9. Keymap Backup</td><td>Saves <code>keymap.json</code> locally, validates schema</td></tr>
+            <tr><td>10. Bluetooth</td><td>macOS BT pairing info scan for any Work Louder devices</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card fade-in" style="margin-top: var(--space-xl); border-left: 3px solid var(--blue); background: rgba(91, 141, 239, 0.04);">
+        <h4 style="color: var(--blue);">How It&rsquo;s Meant To Be Used</h4>
+        <p style="margin: 0; font-size: var(--text-sm);">
+          Clone the repo, <code>npm install</code>, <code>node probe.mjs</code>. After
+          about 5 minutes, it produces <code>output/report-{timestamp}.md</code> with every
+          finding in structured form. The README includes a short &ldquo;For AI agents&rdquo;
+          section explaining how the tool is meant to be run by an assistant on behalf of
+          a device owner. If every phase reports <code>ok</code>, our entire reverse-engineered
+          protocol model is empirically validated. If any fails, we learn something specific
+          and useful.
+        </p>
+      </div>
+    </section>
+
+    <!-- Source -->
+    <section class="section container">
+      <div class="section-label fade-in">Source</div>
+      <h2 class="fade-in">Open Source</h2>
+      <p class="fade-in">
+        The full source is available on GitHub.
+      </p>
+      <p class="fade-in">
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">github.com/malpern/extending-the-knob</a>
+      </p>
+
+      <div class="prev-next fade-in">
+        <a href="configuration.html">&larr; Configuration</a>
+        <a href="confidence.html">Confidence &rarr;</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>
+        Extending the Knob &mdash; an open research project.<br>
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+      <p>
+        Built with static HTML, CSS, and JS. No frameworks. No tracking.<br>
+        <a href="https://worklouder.cc/knob1" target="_blank" rel="noopener">worklouder.cc/knob1</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

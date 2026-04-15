@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Protocol — Extending the Knob</title>
+  <meta name="description" content="Complete technical documentation of the Work Louder k·no·b·1 USB HID protocol, JSON-RPC layer, method reference, and connection flow.">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* --- Page Header --- */
+    .page-header {
+      padding: var(--space-4xl) 0 var(--space-3xl);
+    }
+
+    .page-header h1 {
+      font-size: clamp(2.5rem, 5vw, var(--text-4xl));
+      margin-bottom: var(--space-lg);
+    }
+
+    .page-header .lead {
+      font-size: var(--text-lg);
+      color: var(--text-secondary);
+      max-width: 52ch;
+      line-height: var(--leading-snug);
+    }
+
+    /* --- Packet Legend --- */
+    .packet-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-lg);
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+    }
+
+    .packet-legend-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .packet-legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+
+    .packet-legend-swatch.header  { background: var(--accent-dim); border: 1px solid var(--accent); }
+    .packet-legend-swatch.channel { background: var(--blue-dim); border: 1px solid var(--blue); }
+    .packet-legend-swatch.length  { background: var(--green-dim); border: 1px solid var(--green); }
+    .packet-legend-swatch.payload { background: var(--surface-solid); border: 1px solid var(--text-tertiary); }
+
+    /* --- Byte Table --- */
+    .byte-breakdown {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr;
+      gap: 1px;
+      background: var(--surface-border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: var(--space-xl);
+      font-size: var(--text-sm);
+    }
+
+    .byte-breakdown > div {
+      padding: var(--space-md) var(--space-lg);
+      background: var(--bg);
+    }
+
+    .byte-breakdown .bh {
+      background: var(--surface-solid);
+      font-family: var(--font-ui);
+      font-weight: 500;
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+
+    .byte-breakdown code {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: transparent;
+    }
+
+    /* --- Protocol Compare --- */
+    .protocol-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+
+    .protocol-box {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: var(--space-xl);
+    }
+
+    .protocol-box h4 {
+      margin-bottom: var(--space-md);
+    }
+
+    .protocol-box .tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: var(--space-md);
+    }
+
+    .protocol-box .tag.legacy {
+      background: var(--red-dim);
+      color: var(--red);
+    }
+
+    .protocol-box .tag.modern {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+
+    /* --- Filter Input --- */
+    .filter-wrap {
+      position: relative;
+      margin-bottom: var(--space-lg);
+    }
+
+    .filter-input {
+      width: 100%;
+      padding: var(--space-md) var(--space-lg);
+      padding-left: 2.5rem;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      outline: none;
+      transition: border-color var(--duration-fast) var(--ease-out);
+    }
+
+    .filter-input::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    .filter-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .filter-icon {
+      position: absolute;
+      left: var(--space-md);
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-tertiary);
+      font-size: var(--text-sm);
+      pointer-events: none;
+    }
+
+    .filter-count {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-md);
+    }
+
+    /* --- Method Category Headers --- */
+    .method-category {
+      font-family: var(--font-ui);
+      font-weight: 500;
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .method-category td {
+      padding: var(--space-sm) var(--space-lg);
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    /* --- Direction Badges --- */
+    .dir-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+
+    .dir-badge.h2d {
+      background: var(--blue-dim);
+      color: var(--blue);
+    }
+
+    .dir-badge.d2h {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+
+    /* --- Device Table Enhancements --- */
+    .feature-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--surface-solid);
+      color: var(--text-secondary);
+      margin-right: 4px;
+      margin-bottom: 2px;
+    }
+
+    /* --- Cross Links --- */
+    .cross-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+    }
+
+    .cross-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 6px;
+      padding: var(--space-sm) var(--space-md);
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+
+    .cross-link:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    /* --- External Links Section --- */
+    .ext-links {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-md);
+    }
+
+    .ext-link {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+
+    .ext-link:hover {
+      border-color: rgba(255, 255, 255, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .ext-link .ext-name {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .ext-link .ext-desc {
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+    }
+
+    /* --- No Results --- */
+    .no-results {
+      text-align: center;
+      padding: var(--space-2xl);
+      color: var(--text-tertiary);
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      display: none;
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 768px) {
+      .protocol-compare { grid-template-columns: 1fr; }
+      .ext-links { grid-template-columns: 1fr; }
+      .byte-breakdown { font-size: var(--text-xs); }
+      .byte-breakdown > div { padding: var(--space-sm) var(--space-md); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="../index.html" class="nav-logo">
+      <span class="dot"></span>
+      extending the knob
+    </a>
+    <ul class="nav-links">
+      <li><a href="hardware.html">Hardware</a></li>
+      <li><a href="protocol.html" class="active">Protocol</a></li>
+      <li><a href="display.html">Display</a></li>
+      <li><a href="sdk.html">SDK</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+      <li><a href="tools.html">Tools</a></li>
+      <li><a href="confidence.html">Confidence</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+
+    <!-- Page Header -->
+    <header class="page-header container">
+      <div class="section-label fade-in">Protocol</div>
+      <h1 class="fade-in">Speaking HID</h1>
+      <p class="lead fade-in">
+        The k&middot;no&middot;b&middot;1 communicates over USB HID using 64-byte vendor-specific
+        reports. Inside those packets lives a full JSON-RPC 2.0 layer that
+        controls every aspect of the device &mdash; from firmware queries to
+        wallpaper uploads.
+      </p>
+    </header>
+
+    <!-- ============================================================
+         Section 1: Transport Layer
+         ============================================================ -->
+    <section class="section container" id="transport">
+      <div class="section-label fade-in">01 &mdash; Transport Layer</div>
+      <h2 class="fade-in">64 Bytes at a Time</h2>
+
+      <p class="fade-in">
+        All host-to-device communication flows through <strong>USB HID reports</strong>.
+        The device exposes a vendor-specific HID interface (Usage Page <code>0xFF00</code>)
+        alongside the standard keyboard and consumer control interfaces. On macOS,
+        the interface is opened in <strong>nonExclusive</strong> mode to avoid
+        conflicts with the system HID driver.
+      </p>
+
+      <p class="fade-in">
+        Each report is exactly <strong>64 bytes</strong>. The first three bytes form
+        a header; the remaining 61 bytes carry a UTF-8 payload fragment.
+      </p>
+
+      <h3 class="fade-in">Packet Format</h3>
+
+      <div class="byte-breakdown fade-in">
+        <div class="bh">Offset</div>
+        <div class="bh">Value</div>
+        <div class="bh">Description</div>
+
+        <div><code>0</code></div>
+        <div><code>0x06</code></div>
+        <div>Report ID &mdash; fixed for all vendor-specific traffic</div>
+
+        <div><code>1</code></div>
+        <div><code>0x01</code> or <code>0x02</code></div>
+        <div>Channel &mdash; <code>1</code>&nbsp;=&nbsp;DEBUG, <code>2</code>&nbsp;=&nbsp;RPC</div>
+
+        <div><code>2</code></div>
+        <div><code>0x00</code>&ndash;<code>0x3D</code></div>
+        <div>Payload length (max 61 bytes)</div>
+
+        <div><code>3&ndash;63</code></div>
+        <div><em>varies</em></div>
+        <div>UTF-8 encoded payload data (zero-padded if shorter than 61 bytes)</div>
+      </div>
+
+      <h3 class="fade-in">Packet Visualizer</h3>
+      <p class="fade-in">
+        Below is a real 64-byte HID report for a <code>sys.version</code> call.
+        Hover over any byte to see what it means.
+      </p>
+
+      <div class="packet-legend fade-in">
+        <div class="packet-legend-item">
+          <div class="packet-legend-swatch header"></div>
+          <span>Report ID</span>
+        </div>
+        <div class="packet-legend-item">
+          <div class="packet-legend-swatch channel"></div>
+          <span>Channel</span>
+        </div>
+        <div class="packet-legend-item">
+          <div class="packet-legend-swatch length"></div>
+          <span>Payload Length</span>
+        </div>
+        <div class="packet-legend-item">
+          <div class="packet-legend-swatch payload"></div>
+          <span>Payload / Padding</span>
+        </div>
+      </div>
+
+      <div id="packet-viz-container" class="packet-viz fade-in"></div>
+
+      <h3 class="fade-in">Fragmentation</h3>
+      <p class="fade-in">
+        Messages longer than 61 bytes are <strong>fragmented</strong> across multiple
+        packets. Each fragment fills the 61-byte payload to capacity (except the last
+        one), and fragments are sent sequentially. The receiving end concatenates
+        payloads until it encounters a complete JSON object or a line ending with
+        <code>\r\n</code> for legacy ASCII commands.
+      </p>
+
+      <h3 class="fade-in">Serial Fallback</h3>
+      <p class="fade-in">
+        A serial UART interface at <strong>115200 baud</strong> (8N1) is also available.
+        Over serial, messages are newline-delimited rather than length-prefixed &mdash;
+        no 64-byte framing is needed. The same RPC protocols (legacy ASCII and JSON-RPC 2.0)
+        work identically on both transports.
+      </p>
+
+      <div class="cross-links fade-in">
+        <a href="hardware.html" class="cross-link">Hardware &rarr; ESP32-S3 USB peripheral details</a>
+        <a href="tools.html" class="cross-link">Tools &rarr; knob-cli raw packet mode</a>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Section 2: RPC Layer
+         ============================================================ -->
+    <section class="section container" id="rpc">
+      <div class="section-label fade-in">02 &mdash; RPC Layer</div>
+      <h2 class="fade-in">Two Protocols, One Pipe</h2>
+
+      <p class="fade-in">
+        The device supports two RPC protocols over the same HID channel. Both
+        coexist and the device disambiguates based on whether the payload starts
+        with <code>#</code> (legacy) or <code>{</code> (JSON-RPC).
+      </p>
+
+      <div class="protocol-compare fade-in">
+        <div class="protocol-box">
+          <span class="tag legacy">Legacy</span>
+          <h4>ASCII Protocol</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-md);">
+            A simple text-based framing used in early firmware versions and
+            still supported for backward compatibility.
+          </p>
+          <pre><code># Request format:
+#METHOD#[PARAMS]#\r\n
+
+# Response format:
+#METHOD#RESPONSE#
+
+# Example:
+#sys.version##\r\n
+#sys.version#0.3.1#</code></pre>
+        </div>
+
+        <div class="protocol-box">
+          <span class="tag modern">JSON-RPC 2.0</span>
+          <h4>JSON-RPC Protocol</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-md);">
+            The primary protocol for all modern communication. Follows the
+            <a href="https://www.jsonrpc.org/specification" target="_blank" rel="noopener">JSON-RPC 2.0 specification</a>.
+          </p>
+          <pre><code>// Request:
+{"jsonrpc":"2.0",
+ "method":"sys.version",
+ "params":{},
+ "id":1}
+
+// Response:
+{"jsonrpc":"2.0",
+ "result":{"version":"0.3.1"},
+ "id":1}</code></pre>
+        </div>
+      </div>
+
+      <h3 class="fade-in">Execution Model</h3>
+      <p class="fade-in">
+        Commands are executed <strong>one at a time</strong> in a sequential queue.
+        If a second command arrives while the first is still executing, it waits.
+        The host-side timeout is <strong>10 seconds</strong> &mdash; if no response
+        arrives within that window, the command is considered failed.
+      </p>
+
+      <h3 class="fade-in">Unicode Handling</h3>
+      <p class="fade-in">
+        Non-ASCII characters in JSON payloads are escaped using standard
+        <code>\uXXXX</code> notation. This is particularly relevant for file
+        names and song metadata passed via the media player methods.
+      </p>
+    </section>
+
+    <!-- ============================================================
+         Section 3: Complete Method Reference
+         ============================================================ -->
+    <section class="section container" id="methods">
+      <div class="section-label fade-in">03 &mdash; Method Reference</div>
+      <h2 class="fade-in">Every Known Command</h2>
+
+      <p class="fade-in">
+        The complete catalogue of RPC methods discovered through static analysis
+        of the Input app (v0.14.0) and the community
+        <a href="https://github.com/worklouder/input-linux" target="_blank" rel="noopener">input-linux</a>
+        port. Host-to-device calls use JSON-RPC 2.0 with an incrementing
+        <code>id</code>. Device-to-host events arrive as JSON-RPC notifications
+        (no <code>id</code> field).
+      </p>
+
+      <div class="filter-wrap fade-in">
+        <span class="filter-icon">&#x2315;</span>
+        <input type="text" class="filter-input" id="method-filter"
+               placeholder="Filter methods... (e.g. fs, write, media, status)">
+      </div>
+      <div class="filter-count" id="method-count"></div>
+
+      <div class="table-wrap fade-in">
+        <table id="method-table">
+          <thead>
+            <tr>
+              <th style="min-width: 160px;">Method</th>
+              <th>Params</th>
+              <th>Returns</th>
+              <th style="min-width: 200px;">Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- System -->
+            <tr class="method-category" data-category="system">
+              <td colspan="4">System <span class="dir-badge h2d">host &rarr; device</span></td>
+            </tr>
+            <tr data-method="sys.version" data-cat="system">
+              <td><code>sys.version</code></td>
+              <td><em>none</em></td>
+              <td><code>{version}</code></td>
+              <td>Returns the firmware version string (e.g. <code>"0.3.1"</code>)</td>
+            </tr>
+            <tr data-method="sys.bootloader" data-cat="system">
+              <td><code>sys.bootloader</code></td>
+              <td><em>none</em></td>
+              <td><code>ok</code></td>
+              <td>Reboots the ESP32-S3 into bootloader mode for firmware flashing</td>
+            </tr>
+            <tr data-method="sys.selftest" data-cat="system">
+              <td><code>sys.selftest</code></td>
+              <td><em>none</em></td>
+              <td><code>ok</code></td>
+              <td>Runs the built-in hardware self-test (display, encoders, keys)</td>
+            </tr>
+            <tr data-method="device.status" data-cat="system">
+              <td><code>device.status</code></td>
+              <td><em>none</em></td>
+              <td><code>{version, profile_index, layer_index, battery, is_charging}</code></td>
+              <td>Full device state snapshot &mdash; the first call after connection</td>
+            </tr>
+
+            <!-- Filesystem -->
+            <tr class="method-category" data-category="filesystem">
+              <td colspan="4">Filesystem <span class="dir-badge h2d">host &rarr; device</span></td>
+            </tr>
+            <tr data-method="fs.list" data-cat="filesystem">
+              <td><code>fs.list</code></td>
+              <td><code>{checksum: bool}</code></td>
+              <td><code>[{name, size, checksum}]</code></td>
+              <td>Lists all files on the LittleFS partition. With <code>checksum: true</code>, includes CRC for each file.</td>
+            </tr>
+            <tr data-method="fs.read" data-cat="filesystem">
+              <td><code>fs.read</code></td>
+              <td><code>{file}</code></td>
+              <td>file content (string)</td>
+              <td>Reads a text file from the device filesystem</td>
+            </tr>
+            <tr data-method="fs.write" data-cat="filesystem">
+              <td><code>fs.write</code></td>
+              <td><code>{file, data}</code></td>
+              <td><code>success</code></td>
+              <td>Writes a text file to the device filesystem</td>
+            </tr>
+            <tr data-method="fs.readbin" data-cat="filesystem">
+              <td><code>fs.readbin</code></td>
+              <td><code>{file, offset, len}</code></td>
+              <td><code>{total_size, data:&nbsp;base64}</code></td>
+              <td>Reads a binary chunk (up to 4096 bytes) at the given offset. Used for wallpaper and firmware downloads.</td>
+            </tr>
+            <tr data-method="fs.writebin" data-cat="filesystem">
+              <td><code>fs.writebin</code></td>
+              <td><code>{file, data:&nbsp;base64, append, completed, offset}</code></td>
+              <td><code>{data_written}</code></td>
+              <td>Writes a binary chunk. Set <code>append: true</code> for subsequent chunks, <code>completed: true</code> on the final chunk.</td>
+            </tr>
+            <tr data-method="fs.delete" data-cat="filesystem">
+              <td><code>fs.delete</code></td>
+              <td><code>{file}</code></td>
+              <td><code>success</code></td>
+              <td>Deletes a file from the device filesystem</td>
+            </tr>
+            <tr data-method="fs.format" data-cat="filesystem">
+              <td><code>fs.format</code></td>
+              <td><em>none</em></td>
+              <td><code>success</code></td>
+              <td>Formats the entire LittleFS partition. <strong>Destroys all data.</strong></td>
+            </tr>
+            <tr data-method="fs.chksm" data-cat="filesystem">
+              <td><code>fs.chksm</code></td>
+              <td><code>{file}</code></td>
+              <td><code>checksum</code></td>
+              <td>Returns the CRC checksum of a single file</td>
+            </tr>
+
+            <!-- Display & UI -->
+            <tr class="method-category" data-category="display">
+              <td colspan="4">Display &amp; UI <span class="dir-badge h2d">host &rarr; device</span></td>
+            </tr>
+            <tr data-method="ui.active_screen" data-cat="display">
+              <td><code>ui.active_screen</code></td>
+              <td><em>none</em></td>
+              <td><code>{screen_name}</code></td>
+              <td>Returns the name of the currently displayed screen</td>
+            </tr>
+            <tr data-method="ui.home_accent_color" data-cat="display">
+              <td><code>ui.home_accent_color</code></td>
+              <td><code>{color: number}</code></td>
+              <td><code>success</code></td>
+              <td>Sets the accent color on the home screen. Value is a 24-bit RGB hex integer (e.g. <code>0xFF6600</code>).</td>
+            </tr>
+            <tr data-method="lights.preview" data-cat="display">
+              <td><code>lights.preview</code></td>
+              <td>lighting config object</td>
+              <td><code>success</code></td>
+              <td>Previews an RGB lighting configuration without persisting it. See <a href="configuration.html">Configuration</a> for the lighting schema.</td>
+            </tr>
+
+            <!-- Media -->
+            <tr class="method-category" data-category="media">
+              <td colspan="4">Media <span class="dir-badge h2d">host &rarr; device</span></td>
+            </tr>
+            <tr data-method="mp.write_info" data-cat="media">
+              <td><code>mp.write_info</code></td>
+              <td><code>{song_title, artist, elapsed, total_duration, is_playing}</code></td>
+              <td><code>success</code></td>
+              <td>Pushes now-playing metadata to the device display</td>
+            </tr>
+            <tr data-method="mp.write_artwork" data-cat="media">
+              <td><code>mp.write_artwork</code></td>
+              <td><code>{data:&nbsp;base64, offset, size}</code></td>
+              <td><code>success</code></td>
+              <td>Sends album artwork in 4096-byte base64 chunks. See <a href="display.html">Display</a> for image format details.</td>
+            </tr>
+
+            <!-- Host-to-Device Notifications -->
+            <tr class="method-category" data-category="host-notifications">
+              <td colspan="4">Host-to-Device Notifications <span class="dir-badge h2d">host &rarr; device</span></td>
+            </tr>
+            <tr data-method="host.focused_app" data-cat="host-notifications" title="Added in firmware v0.3.2">
+              <td><code>host.focused_app</code> <span style="color: var(--green); font-size: 0.8em; margin-left: 6px;">NEW</span></td>
+              <td>app info object</td>
+              <td><em>void (notification)</em></td>
+              <td>Tells the device which application is currently focused on the host. Used by Creator Micro v2 and XYZ for context-aware layers.</td>
+            </tr>
+
+            <!-- Device-to-Host Events -->
+            <tr class="method-category" data-category="device-events">
+              <td colspan="4">Device-to-Host Events <span class="dir-badge d2h">device &rarr; host</span></td>
+            </tr>
+            <tr data-method="mp.fetch_data" data-cat="device-events">
+              <td><code>mp.fetch_data</code></td>
+              <td>&mdash;</td>
+              <td>&mdash;</td>
+              <td>Emitted when the device wants the host to send updated media playback data</td>
+            </tr>
+            <tr data-method="alert.generic" data-cat="device-events">
+              <td><code>alert.generic</code></td>
+              <td>&mdash;</td>
+              <td>&mdash;</td>
+              <td>Generic alert notification from device to host</td>
+            </tr>
+            <tr data-method="kb.radial" data-cat="device-events">
+              <td><code>kb.radial</code></td>
+              <td>&mdash;</td>
+              <td>&mdash;</td>
+              <td>Radial menu joystick position data (used by Creator Micro v2)</td>
+            </tr>
+            <tr data-method="diagnostic.logs" data-cat="device-events">
+              <td><code>diagnostic.logs</code></td>
+              <td>&mdash;</td>
+              <td>&mdash;</td>
+              <td>Diagnostic log output streamed from device firmware</td>
+            </tr>
+
+            <!-- Diagnostics -->
+            <tr class="category-header"><td colspan="4" style="font-weight:600; color: var(--text); padding-top: var(--space-xl);">Diagnostics</td></tr>
+            <tr data-method="sentry.get" data-cat="diagnostics">
+              <td><code>sentry.get</code></td>
+              <td>&mdash;</td>
+              <td><code>{ uptime, heap, cpu_usage, tasks }</code></td>
+              <td>Device diagnostics: uptime, free heap memory, CPU usage, running FreeRTOS tasks</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="no-results" id="no-results">
+        No methods match your search.
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Section 4: Connection Flow
+         ============================================================ -->
+    <section class="section container" id="connection">
+      <div class="section-label fade-in">04 &mdash; Connection Flow</div>
+      <h2 class="fade-in">From USB Cable to RPC</h2>
+
+      <p class="fade-in">
+        Establishing a connection follows a strict sequence. Every step must
+        succeed before the next begins. This is the same flow used by the
+        official Input app and by
+        <a href="tools.html">knob-cli</a>.
+      </p>
+
+      <div class="pipeline stagger" style="margin-top: var(--space-xl);">
+        <div class="pipeline-step fade-in">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>USB Enumeration</h3>
+            <p>
+              Scan for HID devices with Vendor ID <code>0x303A</code> (Espressif)
+              and one of the known Product IDs: <code>0x5555</code>,
+              <code>0x8296</code>, <code>0x82E3</code>, and others.
+              The <a href="https://github.com/worklouder/node-hid" target="_blank" rel="noopener">Work Louder node-hid fork</a>
+              adds features specific to this detection step.
+            </p>
+          </div>
+        </div>
+
+        <div class="pipeline-step fade-in">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Filter by Usage Page</h3>
+            <p>
+              Each physical device exposes multiple HID interfaces. Filter for
+              <strong>Usage Page <code>0xFF00</code></strong> (vendor-defined) to
+              find the RPC interface. Ignore the standard keyboard
+              (<code>0x01/0x06</code>) and consumer control (<code>0x0C/0x01</code>)
+              interfaces.
+            </p>
+          </div>
+        </div>
+
+        <div class="pipeline-step fade-in">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Open HID Interface</h3>
+            <p>
+              Open the vendor-specific HID interface. On macOS, use
+              <code>nonExclusive: true</code> to avoid claiming exclusive access,
+              which would block the system keyboard driver. On Linux and Windows,
+              standard exclusive access works fine.
+            </p>
+          </div>
+        </div>
+
+        <div class="pipeline-step fade-in">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h3>Query Device Status</h3>
+            <p>
+              Send <code>device.status</code> as the first RPC call. The response
+              contains the firmware version, active profile/layer indices, battery
+              level, and charging state. This confirms the RPC channel is alive.
+            </p>
+          </div>
+        </div>
+
+        <div class="pipeline-step fade-in">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <h3>Filesystem Sync</h3>
+            <p>
+              Call <code>fs.list</code> with <code>checksum: true</code> to get a
+              manifest of all files on the device. Compare checksums with local
+              copies to determine what needs to be synced (keymaps, wallpapers,
+              lighting configs).
+            </p>
+          </div>
+        </div>
+
+        <div class="pipeline-step fade-in">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <h3>Bidirectional RPC Established</h3>
+            <p>
+              The connection is now fully operational. The host can send commands
+              at will, and the device can emit events (media requests, alerts,
+              diagnostic logs) at any time. Both directions share the same
+              64-byte HID report channel.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Section 5: Device Identification
+         ============================================================ -->
+    <section class="section container" id="devices">
+      <div class="section-label fade-in">05 &mdash; Device Identification</div>
+      <h2 class="fade-in">Known Devices</h2>
+
+      <p class="fade-in">
+        All Work Louder devices share Vendor ID <code>0x303A</code> (Espressif).
+        Each product variant has a unique Product ID. The <code>type</code> field
+        determines which features the host software should enable.
+      </p>
+
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr>
+              <th>Device</th>
+              <th>PID</th>
+              <th>Type</th>
+              <th>Features</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>k&middot;no&middot;b&middot;1 (legacy)</td>
+              <td><code>0x5555</code></td>
+              <td><code>knob</code></td>
+              <td><span class="feature-tag">alert</span><span class="feature-tag">wallpaper</span></td>
+            </tr>
+            <tr>
+              <td>k&middot;no&middot;b&middot;1 (ANSI)</td>
+              <td><code>0x8296</code></td>
+              <td><code>knob</code></td>
+              <td><span class="feature-tag">alert</span><span class="feature-tag">wallpaper</span></td>
+            </tr>
+            <tr>
+              <td>k&middot;no&middot;b&middot;1 (ISO)</td>
+              <td><code>0x82E3</code></td>
+              <td><code>knob</code></td>
+              <td><span class="feature-tag">alert</span><span class="feature-tag">wallpaper</span></td>
+            </tr>
+            <tr>
+              <td>Nomad E (legacy)</td>
+              <td><code>0x1001</code></td>
+              <td><code>nomad_e</code></td>
+              <td><span class="feature-tag">mediaPlayer</span><span class="feature-tag">alert</span><span class="feature-tag">wallpaper</span></td>
+            </tr>
+            <tr>
+              <td>Nomad E (ANSI)</td>
+              <td><code>0x82D4</code></td>
+              <td><code>nomad_e</code></td>
+              <td><span class="feature-tag">mediaPlayer</span><span class="feature-tag">alert</span><span class="feature-tag">wallpaper</span></td>
+            </tr>
+            <tr>
+              <td>Nomad E (ISO)</td>
+              <td><code>0x82D5</code></td>
+              <td><code>nomad_e</code></td>
+              <td><span class="feature-tag">mediaPlayer</span><span class="feature-tag">alert</span><span class="feature-tag">wallpaper</span></td>
+            </tr>
+            <tr>
+              <td>Creator Micro v2</td>
+              <td><code>0x8297</code> / <code>0x8298</code></td>
+              <td><code>creator_micro_v2</code></td>
+              <td><span class="feature-tag">radialMenu</span><span class="feature-tag">focusedApp</span></td>
+            </tr>
+            <tr>
+              <td>XYZ</td>
+              <td><code>0x8346</code></td>
+              <td><code>xyz</code></td>
+              <td><span class="feature-tag">focusedApp</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cross-links fade-in">
+        <a href="hardware.html" class="cross-link">Hardware &rarr; ESP32-S3 chip details and partition layout</a>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Section 6: External Links
+         ============================================================ -->
+    <section class="section container" id="links">
+      <div class="section-label fade-in">06 &mdash; External Resources</div>
+      <h2 class="fade-in">Further Reading</h2>
+
+      <p class="fade-in">
+        The specifications and libraries that underpin this protocol.
+      </p>
+
+      <div class="ext-links fade-in" style="margin-top: var(--space-xl);">
+        <a href="https://www.jsonrpc.org/specification" target="_blank" rel="noopener" class="ext-link">
+          <div>
+            <div class="ext-name">JSON-RPC 2.0 Specification</div>
+            <div class="ext-desc">The wire format used for all modern RPC communication</div>
+          </div>
+        </a>
+        <a href="https://www.usb.org/hid" target="_blank" rel="noopener" class="ext-link">
+          <div>
+            <div class="ext-name">USB HID Specification</div>
+            <div class="ext-desc">Official USB-IF documentation for Human Interface Devices</div>
+          </div>
+        </a>
+        <a href="https://github.com/node-hid/node-hid" target="_blank" rel="noopener" class="ext-link">
+          <div>
+            <div class="ext-name">node-hid</div>
+            <div class="ext-desc">Node.js library for communicating with HID devices</div>
+          </div>
+        </a>
+        <a href="https://github.com/worklouder/node-hid" target="_blank" rel="noopener" class="ext-link">
+          <div>
+            <div class="ext-name">Work Louder node-hid fork</div>
+            <div class="ext-desc">Fork with nonExclusive macOS support and device detection patches</div>
+          </div>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>
+        Extending the Knob &mdash; an open research project.<br>
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+      <p>
+        Built with static HTML, CSS, and JS. No frameworks. No tracking.<br>
+        <a href="https://worklouder.cc/knob1" target="_blank" rel="noopener">worklouder.cc/knob1</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+  <script>
+    // ================================================================
+    // Packet Visualizer — sys.version call
+    // ================================================================
+    (function () {
+      // Build the JSON-RPC payload for sys.version
+      var jsonPayload = '{"jsonrpc":"2.0","method":"sys.version","params":{},"id":1}';
+      var payloadBytes = [];
+      for (var i = 0; i < jsonPayload.length; i++) {
+        payloadBytes.push(jsonPayload.charCodeAt(i));
+      }
+
+      // Build full 64-byte packet
+      var packet = [];
+
+      // Byte 0: Report ID
+      packet.push({ hex: '06', type: 'header', label: 'Byte 0: Report ID (0x06)' });
+
+      // Byte 1: Channel (RPC = 2)
+      packet.push({ hex: '02', type: 'channel', label: 'Byte 1: Channel 2 (RPC)' });
+
+      // Byte 2: Payload length
+      var len = payloadBytes.length;
+      packet.push({
+        hex: len.toString(16).toUpperCase().padStart(2, '0'),
+        type: 'length',
+        label: 'Byte 2: Payload length (' + len + ' bytes)'
+      });
+
+      // Bytes 3..3+len-1: Payload
+      for (var j = 0; j < payloadBytes.length; j++) {
+        var ch = String.fromCharCode(payloadBytes[j]);
+        var hexVal = payloadBytes[j].toString(16).toUpperCase().padStart(2, '0');
+        packet.push({
+          hex: hexVal,
+          type: 'payload',
+          label: 'Byte ' + (j + 3) + ': \'' + ch + '\' (0x' + hexVal + ')'
+        });
+      }
+
+      // Remaining bytes: zero-padded
+      for (var k = payloadBytes.length + 3; k < 64; k++) {
+        packet.push({
+          hex: '00',
+          type: 'payload',
+          label: 'Byte ' + k + ': padding (0x00)'
+        });
+      }
+
+      var container = document.getElementById('packet-viz-container');
+      if (container && typeof createPacketViz === 'function') {
+        createPacketViz(container, packet);
+      }
+    })();
+
+    // ================================================================
+    // Method Reference Filter
+    // ================================================================
+    (function () {
+      var input = document.getElementById('method-filter');
+      var table = document.getElementById('method-table');
+      var countEl = document.getElementById('method-count');
+      var noResults = document.getElementById('no-results');
+
+      if (!input || !table) return;
+
+      var rows = table.querySelectorAll('tbody tr[data-method]');
+      var categoryRows = table.querySelectorAll('tbody tr.method-category');
+      var totalMethods = rows.length;
+
+      function updateCount(visible) {
+        if (countEl) {
+          countEl.textContent = visible + ' of ' + totalMethods + ' methods shown';
+        }
+      }
+
+      updateCount(totalMethods);
+
+      input.addEventListener('input', function () {
+        var query = this.value.toLowerCase().trim();
+        var visibleCount = 0;
+        var visibleCats = {};
+
+        rows.forEach(function (row) {
+          var method = (row.getAttribute('data-method') || '').toLowerCase();
+          var text = row.textContent.toLowerCase();
+          var cat = row.getAttribute('data-cat');
+          var match = !query || method.indexOf(query) !== -1 || text.indexOf(query) !== -1;
+
+          row.style.display = match ? '' : 'none';
+          if (match) {
+            visibleCount++;
+            visibleCats[cat] = true;
+          }
+        });
+
+        // Show/hide category headers
+        categoryRows.forEach(function (catRow) {
+          var cat = catRow.getAttribute('data-category');
+          catRow.style.display = visibleCats[cat] ? '' : 'none';
+        });
+
+        updateCount(visibleCount);
+
+        if (noResults) {
+          noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

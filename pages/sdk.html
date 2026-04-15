@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The SDK — Extending the Knob</title>
+  <meta name="description" content="Work Louder's MicroPython SDK. The architecture, the 5-function Python API, example widgets, and what becomes possible.">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* --- Python syntax highlighting (custom, palette-matched) --- */
+    pre code.language-python {
+      color: var(--text);
+    }
+    .tok-kw    { color: #D4A853; }  /* keywords: def, class, if, etc. */
+    .tok-self  { color: #D4A853; font-style: italic; }
+    .tok-bi    { color: #7FB3D5; }  /* builtins */
+    .tok-def   { color: #E8E4DE; }  /* function/class names */
+    .tok-str   { color: #7AB38C; }  /* strings */
+    .tok-num   { color: #5B8DEF; }  /* numbers */
+    .tok-com   { color: #5A5760; font-style: italic; }  /* comments */
+    .tok-dec   { color: #C9A0DC; }  /* decorators */
+    .tok-op    { color: #8A8690; }  /* operators */
+    .tok-punc  { color: #8A8690; }
+
+
+    /* --- Hero with confetti --- */
+    .sdk-hero {
+      min-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: var(--space-4xl) 0 var(--space-3xl);
+      position: relative;
+      overflow: visible;
+    }
+
+    .sdk-hero-emoji-wrap {
+      position: relative;
+      margin-bottom: var(--space-xl);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .sdk-hero-emoji {
+      font-size: 8rem;
+      line-height: 1;
+      display: inline-block;
+      transition: transform var(--duration) var(--ease-out);
+      animation: breathe 4s ease-in-out infinite;
+      filter: drop-shadow(0 8px 24px rgba(212, 168, 83, 0.15));
+    }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+
+    .sdk-hero-emoji-wrap:hover .sdk-hero-emoji {
+      animation: shake 0.6s ease-in-out;
+    }
+
+    .sdk-hero-emoji-wrap.burst .sdk-hero-emoji {
+      animation: shake 0.6s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      15% { transform: scale(1.1) rotate(-3deg); }
+      30% { transform: scale(1.1) rotate(3deg); }
+      45% { transform: scale(1.12) rotate(-2deg); }
+      60% { transform: scale(1.1) rotate(2deg); }
+      75% { transform: scale(1.05) rotate(-1deg); }
+    }
+
+    @keyframes confetti-fall {
+      0% {
+        opacity: 0;
+        transform: translate(0, 0) rotate(0deg) scale(0.4);
+      }
+      15% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(1);
+      }
+    }
+
+    .confetti-piece {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 14px;
+      border-radius: 2px;
+      pointer-events: none;
+      animation: confetti-fall 1.6s var(--ease-out) forwards;
+      will-change: transform, opacity;
+    }
+
+    .sdk-hero-hint {
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      margin-top: var(--space-sm);
+      font-style: italic;
+      opacity: 0;
+      transition: opacity var(--duration) var(--ease-out);
+    }
+
+    .sdk-hero-emoji-wrap:hover + .sdk-hero-hint,
+    .sdk-hero-emoji-wrap.has-played + .sdk-hero-hint {
+      opacity: 1;
+    }
+
+    /* The playful deck line — sits close to the emoji like a caption */
+    .sdk-deck {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      max-width: 38ch;
+      line-height: var(--leading-snug);
+      margin-top: var(--space-md);
+      padding-left: var(--space-sm);
+      border-left: 2px solid var(--accent);
+    }
+    .sdk-deck em {
+      font-style: italic;
+      color: var(--text);
+    }
+
+    .sdk-hero h1 {
+      font-size: clamp(2.5rem, 5vw, var(--text-4xl));
+      max-width: 18ch;
+      margin-bottom: var(--space-xl);
+    }
+
+    .sdk-hero .subtitle {
+      font-family: var(--font-body);
+      font-size: var(--text-lg);
+      color: var(--text-secondary);
+      max-width: 58ch;
+      line-height: var(--leading-snug);
+      margin-bottom: var(--space-lg);
+      font-style: italic;
+    }
+
+    .sdk-hero .subtitle strong {
+      color: var(--text);
+      font-style: normal;
+    }
+
+    .sdk-hero .meta {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+    }
+
+    /* --- Stats --- */
+    .sdk-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: var(--space-md);
+      margin: var(--space-xl) 0;
+    }
+
+    .sdk-stat {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: var(--space-lg);
+      text-align: center;
+    }
+
+    .sdk-stat .num {
+      font-family: var(--font-display);
+      font-size: var(--text-3xl);
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: var(--space-xs);
+    }
+
+    .sdk-stat .label {
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* --- Architecture diagram --- */
+    .arch-diagram {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: var(--space-md);
+      align-items: center;
+      margin: var(--space-2xl) 0;
+    }
+
+    .arch-box {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: var(--space-lg);
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+    }
+
+    .arch-box .arch-title {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      color: var(--text);
+      margin-bottom: var(--space-sm);
+    }
+
+    .arch-box .arch-sub {
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      margin-bottom: var(--space-md);
+      font-family: var(--font-mono);
+    }
+
+    .arch-box ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .arch-box li {
+      padding: 4px 0;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-sm);
+    }
+
+    .arch-box li::before {
+      content: '';
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0.5;
+      flex-shrink: 0;
+    }
+
+    .arch-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-xs);
+      padding: 0 var(--space-md);
+    }
+
+    .arch-arrow .line {
+      width: 40px;
+      text-align: center;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      font-size: var(--text-xl);
+    }
+
+    .arch-arrow .label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .arch-diagram { grid-template-columns: 1fr; }
+      .arch-arrow { flex-direction: row; justify-content: center; }
+      .arch-arrow .line { transform: rotate(90deg); }
+      .sdk-hero-emoji { font-size: 5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="../index.html" class="nav-logo">
+      <span class="dot"></span>
+      extending the knob
+    </a>
+    <ul class="nav-links">
+      <li><a href="hardware.html">Hardware</a></li>
+      <li><a href="protocol.html">Protocol</a></li>
+      <li><a href="display.html">Display</a></li>
+      <li><a href="sdk.html" class="active">SDK</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+      <li><a href="tools.html">Tools</a></li>
+      <li><a href="confidence.html">Confidence</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+
+    <!-- Hero with Confetti -->
+    <section class="sdk-hero container">
+      <div class="sdk-hero-emoji-wrap" id="emojiWrap" title="Click me">
+        <div class="sdk-hero-emoji" id="sdkEmoji">&#129323;</div>
+      </div>
+      <div class="sdk-deck fade-in">
+        <em>They&rsquo;re not hiding it. They&rsquo;re just not telling anyone.</em>
+      </div>
+
+      <h4 class="section-label fade-in" style="margin-top: var(--space-xl);">The SDK</h4>
+      <h1 class="fade-in">Python, Running on the Keyboard Itself.</h1>
+      <p class="subtitle fade-in">
+        Found in a public repo with a <span style="font-style: normal;">&#128064;</span>
+        for a README and a <span style="font-style: normal;">&#129323;</span>
+        in the release notes. Work Louder has quietly shipped a
+        <strong>MicroPython SDK</strong> for the Nomad&nbsp;E &mdash; the firmware executes your Python
+        directly on the ESP32-S3 with full LVGL access, and scripts hot-reload the moment you save.
+      </p>
+      <div class="meta fade-in">
+        repo: input-releases-internal &middot; tag: sdk-alpha-0.1 &middot; device: Nomad&nbsp;E (only, for&nbsp;now)
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="container fade-in">
+      <div class="sdk-stats">
+        <div class="sdk-stat">
+          <div class="num">v1.26.1</div>
+          <div class="label">MicroPython on device</div>
+        </div>
+        <div class="sdk-stat">
+          <div class="num">20 KiB</div>
+          <div class="label">MicroPython heap</div>
+        </div>
+        <div class="sdk-stat">
+          <div class="num">481</div>
+          <div class="label">LVGL bindings</div>
+        </div>
+        <div class="sdk-stat">
+          <div class="num">5</div>
+          <div class="label">wlsdk submodules</div>
+        </div>
+        <div class="sdk-stat">
+          <div class="num">4</div>
+          <div class="label">Lifecycle hooks</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- The Architecture -->
+    <section class="section container">
+      <div class="section-label fade-in">The Architecture</div>
+      <h2 class="fade-in">Python, Running on the Knob Itself</h2>
+      <p class="fade-in">
+        The firmware boots an embedded MicroPython runtime with 481 bindings to the full LVGL 9
+        widget library. Your <code>app.py</code> is loaded from <code>/fs/app.py</code> on the
+        device&rsquo;s LittleFS, executed in that MicroPython interpreter, and rendered directly
+        to the display. Lifecycle hooks (<code>start</code>, <code>update</code>,
+        <code>on_event</code>, <code>end</code>) run on the device&rsquo;s frame loop.
+      </p>
+      <p class="fade-in">
+        An <em>optional</em> <code>worker.py</code> runs in a separate Pyodide sandbox in the
+        Input app on your computer, for tasks the device can&rsquo;t do easily &mdash; HTTP
+        requests, subprocess calls, anything that needs the host. The two communicate over
+        JSON-RPC with a shared <code>wlsdk.*</code> method namespace.
+      </p>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">The Data Flow</h3>
+
+      <style>
+        .arch-svg {
+          width: 100%;
+          height: auto;
+          margin: var(--space-xl) 0;
+          display: block;
+        }
+        .arch-svg text {
+          font-family: var(--font-ui);
+          fill: var(--text);
+        }
+        .arch-svg .a-title {
+          font-family: var(--font-display);
+          font-size: 20px;
+        }
+        .arch-svg .a-sub {
+          font-family: var(--font-mono);
+          font-size: 10px;
+          fill: var(--text-tertiary);
+          letter-spacing: 0.5px;
+        }
+        .arch-svg .a-label {
+          font-family: var(--font-ui);
+          font-size: 11px;
+          fill: var(--text-secondary);
+        }
+        .arch-svg .a-label-strong {
+          font-family: var(--font-ui);
+          font-size: 11px;
+          font-weight: 500;
+          fill: var(--text);
+        }
+        .arch-svg .a-data {
+          font-family: var(--font-mono);
+          font-size: 10px;
+          fill: var(--accent);
+        }
+        .arch-svg .a-rect {
+          fill: var(--surface-solid);
+          stroke: var(--surface-border);
+          stroke-width: 1;
+        }
+        .arch-svg .a-chip {
+          fill: #17151b;
+          stroke: var(--surface-border);
+          stroke-width: 1;
+        }
+        .arch-svg .a-screen {
+          fill: #0a0a0e;
+          stroke: var(--surface-border);
+          stroke-width: 1;
+        }
+        .arch-svg .a-storage {
+          fill: rgba(91, 141, 239, 0.08);
+          stroke: rgba(91, 141, 239, 0.3);
+          stroke-width: 1;
+          stroke-dasharray: 3 2;
+        }
+        .arch-svg .a-exec {
+          fill: rgba(212, 168, 83, 0.08);
+          stroke: rgba(212, 168, 83, 0.4);
+          stroke-width: 1;
+        }
+        .arch-svg .a-latent {
+          fill: rgba(196, 107, 107, 0.05);
+          stroke: rgba(196, 107, 107, 0.25);
+          stroke-width: 1;
+          stroke-dasharray: 2 3;
+        }
+        .arch-svg .a-arrow-out {
+          stroke: var(--accent);
+          stroke-width: 1.5;
+          fill: none;
+        }
+        .arch-svg .a-arrow-in {
+          stroke: var(--green);
+          stroke-width: 1.5;
+          fill: none;
+        }
+        .arch-svg .a-cable {
+          stroke: var(--text-tertiary);
+          stroke-width: 2;
+          fill: none;
+          opacity: 0.5;
+        }
+        .arch-svg .a-file-icon {
+          fill: var(--accent-dim);
+          stroke: var(--accent);
+          stroke-width: 1;
+        }
+        .arch-svg .a-note {
+          font-family: var(--font-body);
+          font-style: italic;
+          font-size: 11px;
+          fill: var(--text-tertiary);
+        }
+        .arch-svg .a-dot {
+          fill: var(--accent);
+        }
+        .arch-svg .a-dot-green {
+          fill: var(--green);
+        }
+        .arch-svg .a-pulse {
+          animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 1; }
+        }
+        /* Animated data flow */
+        .arch-svg .flow-particle {
+          fill: var(--accent);
+        }
+        .arch-svg .flow-out-path {
+          stroke-dasharray: 3 6;
+          animation: flow-dash 1.5s linear infinite;
+        }
+        .arch-svg .flow-in-path {
+          stroke-dasharray: 3 6;
+          animation: flow-dash-rev 1.5s linear infinite;
+        }
+        @keyframes flow-dash {
+          to { stroke-dashoffset: -18; }
+        }
+        @keyframes flow-dash-rev {
+          to { stroke-dashoffset: 18; }
+        }
+      </style>
+
+      <div class="fade-in">
+      <svg class="arch-svg" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SDK architecture: app.py runs on the ESP32-S3 in MicroPython with LVGL bindings; worker.py optionally runs on the host in Pyodide for external data">
+        <defs>
+          <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 Z" fill="#D4A853" />
+          </marker>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 Z" fill="#7AB38C" />
+          </marker>
+        </defs>
+
+        <!-- HOST side (smaller — secondary/optional) -->
+        <g transform="translate(20, 40)">
+          <text class="a-sub" x="0" y="0">HOST (OPTIONAL)</text>
+          <text class="a-title" x="0" y="24">Input app</text>
+
+          <rect class="a-rect" x="0" y="44" width="300" height="300" rx="10" />
+
+          <!-- Editor -->
+          <g transform="translate(16, 60)">
+            <rect class="a-screen" x="0" y="0" width="268" height="70" rx="6" />
+            <text class="a-label-strong" x="10" y="18">CodeMirror Editor</text>
+            <text class="a-sub" x="10" y="30" style="font-size: 9px;">edit app.py and worker.py</text>
+            <!-- Code lines mockup -->
+            <rect x="10" y="40" width="80" height="3" rx="1.5" fill="#D4A853" opacity="0.7"/>
+            <rect x="10" y="48" width="130" height="3" rx="1.5" fill="#8A8690" opacity="0.5"/>
+            <rect x="22" y="56" width="80" height="3" rx="1.5" fill="#7AB38C" opacity="0.7"/>
+            <rect x="10" y="64" width="60" height="3" rx="1.5" fill="#D4A853" opacity="0.7"/>
+          </g>
+
+          <!-- worker.py Pyodide (optional, dashed/muted) -->
+          <g transform="translate(16, 146)">
+            <rect class="a-latent" x="0" y="0" width="268" height="124" rx="6" />
+            <text class="a-label-strong" x="10" y="18">Pyodide Worker</text>
+            <text class="a-sub" x="10" y="32">optional &middot; only if you need external data</text>
+
+            <!-- worker.py file inside -->
+            <g transform="translate(10, 46)">
+              <path class="a-file-icon" d="M 0 0 L 16 0 L 22 6 L 22 28 L 0 28 Z" opacity="0.7"/>
+              <text class="a-label" x="28" y="14">worker.py</text>
+              <text class="a-sub" x="28" y="24" style="font-size: 9px;">runs HTTP, subprocess</text>
+            </g>
+
+            <g transform="translate(10, 88)">
+              <text class="a-sub" x="0" y="0" style="font-size: 9px;">HOST API</text>
+              <text class="a-data" x="0" y="12" style="font-size: 9px;">send_rpc &middot; register_notify</text>
+              <text class="a-data" x="0" y="24" style="font-size: 9px;">handle_notify &middot; exec_process</text>
+            </g>
+          </g>
+
+          <!-- USB connection -->
+          <g transform="translate(16, 286)">
+            <rect class="a-rect" x="0" y="0" width="268" height="46" rx="6" />
+            <text class="a-label-strong" x="10" y="18">Input app (Electron)</text>
+            <text class="a-sub" x="10" y="32" style="font-size: 9px;">WebSocket &rarr; USB HID bridge</text>
+          </g>
+        </g>
+
+        <!-- USB / bridge arrows -->
+        <g>
+          <!-- bi-directional JSON-RPC -->
+          <path class="a-arrow-out flow-out-path" d="M 325 180 C 400 180, 460 180, 540 180" marker-end="url(#arrow-amber)" />
+          <text class="a-label-strong" x="430" y="165" text-anchor="middle">JSON-RPC call</text>
+          <text class="a-data" x="430" y="148" text-anchor="middle" style="font-size: 10px;">{ "method": "wlsdk.fetch_data", ... }</text>
+
+          <path class="a-arrow-in flow-in-path" d="M 540 220 C 460 220, 400 220, 325 220" marker-end="url(#arrow-green)" />
+          <text class="a-label-strong" x="430" y="254" text-anchor="middle" style="fill: #7AB38C;">notify / response</text>
+          <text class="a-data" x="430" y="272" text-anchor="middle" style="font-size: 10px; fill: #7AB38C;">{ "method": "wlsdk.price_update", ... }</text>
+
+          <text class="a-sub" x="430" y="298" text-anchor="middle">over USB HID (vendor 0xFF00)</text>
+        </g>
+
+        <!-- DEVICE side (LARGER — this is where most execution happens) -->
+        <g transform="translate(540, 40)">
+          <text class="a-sub" x="0" y="0">DEVICE (PRIMARY EXECUTION)</text>
+          <text class="a-title" x="0" y="24">Nomad E / k&middot;no&middot;b&middot;1</text>
+
+          <rect class="a-exec" x="0" y="44" width="350" height="340" rx="10" />
+
+          <!-- ESP32-S3 chip -->
+          <g transform="translate(18, 64)">
+            <rect class="a-chip" x="0" y="0" width="90" height="52" rx="4" />
+            <text class="a-label-strong" x="45" y="22" text-anchor="middle" style="font-size: 10px;">ESP32-S3</text>
+            <text class="a-sub" x="45" y="35" text-anchor="middle" style="font-size: 8px;">Xtensa LX7</text>
+            <g stroke="var(--text-tertiary)" stroke-width="0.8" opacity="0.6">
+              <line x1="10" y1="52" x2="10" y2="56"/>
+              <line x1="20" y1="52" x2="20" y2="56"/>
+              <line x1="30" y1="52" x2="30" y2="56"/>
+              <line x1="40" y1="52" x2="40" y2="56"/>
+              <line x1="60" y1="52" x2="60" y2="56"/>
+              <line x1="70" y1="52" x2="70" y2="56"/>
+              <line x1="80" y1="52" x2="80" y2="56"/>
+            </g>
+          </g>
+
+          <!-- MicroPython runtime (PROMINENT, amber/execution color) -->
+          <g transform="translate(124, 64)">
+            <rect class="a-exec" x="0" y="0" width="210" height="90" rx="6" style="stroke: var(--accent); stroke-width: 1.5;" />
+            <text class="a-label-strong" x="12" y="18">MicroPython v1.26.1</text>
+            <text class="a-sub" x="12" y="30">20 KiB heap &middot; 481 LVGL bindings</text>
+
+            <!-- app.py EXECUTING -->
+            <g transform="translate(12, 40)">
+              <path class="a-file-icon" d="M 0 0 L 18 0 L 26 8 L 26 32 L 0 32 Z" />
+              <path d="M 18 0 L 18 8 L 26 8" fill="none" stroke="#D4A853" stroke-width="1"/>
+              <text class="a-label-strong" x="34" y="14">app.py</text>
+              <text class="a-label" x="34" y="26" style="fill: var(--accent);">executing</text>
+              <text class="a-sub" x="34" y="38" style="font-size: 9px;">/fs/app.py &rarr; hot reload</text>
+            </g>
+          </g>
+
+          <!-- Lifecycle hooks box -->
+          <g transform="translate(18, 168)">
+            <rect class="a-rect" x="0" y="0" width="210" height="88" rx="6" />
+            <text class="a-label-strong" x="12" y="18">Lifecycle hooks</text>
+            <text class="a-sub" x="12" y="30" style="font-size: 9px;">you define these in app.py</text>
+
+            <g transform="translate(12, 42)">
+              <text class="a-data" x="0" y="0">start()</text>
+              <text class="a-sub" x="70" y="0" style="font-size: 9px;">once after load</text>
+              <text class="a-data" x="0" y="12">update()</text>
+              <text class="a-sub" x="70" y="12" style="font-size: 9px;">every frame</text>
+              <text class="a-data" x="0" y="24">on_event(t, i, v)</text>
+              <text class="a-sub" x="108" y="24" style="font-size: 9px;">input</text>
+              <text class="a-data" x="0" y="36">end()</text>
+              <text class="a-sub" x="70" y="36" style="font-size: 9px;">on teardown</text>
+            </g>
+          </g>
+
+          <!-- wlsdk module box -->
+          <g transform="translate(18, 268)">
+            <rect class="a-rect" x="0" y="0" width="210" height="100" rx="6" />
+            <text class="a-label-strong" x="12" y="18">wlsdk module</text>
+            <g transform="translate(12, 30)">
+              <text class="a-data" x="0" y="0">wlsdk.ui</text>
+              <text class="a-sub" x="70" y="0" style="font-size: 9px;">screen + fonts</text>
+              <text class="a-data" x="0" y="12">wlsdk.EVENT</text>
+              <text class="a-sub" x="70" y="12" style="font-size: 9px;">constants</text>
+              <text class="a-data" x="0" y="24">wlsdk.time</text>
+              <text class="a-sub" x="70" y="24" style="font-size: 9px;">frame timing</text>
+              <text class="a-data" x="0" y="36">wlsdk.sys</text>
+              <text class="a-sub" x="70" y="36" style="font-size: 9px;">platform info</text>
+              <text class="a-data" x="0" y="48">wlsdk.rpc</text>
+              <text class="a-sub" x="70" y="48" style="font-size: 9px;">host comms</text>
+              <text class="a-data" x="0" y="60">+ lvgl</text>
+              <text class="a-sub" x="70" y="60" style="font-size: 9px;">full widget library</text>
+            </g>
+          </g>
+
+          <!-- Display (tall) -->
+          <g transform="translate(242, 170)">
+            <rect class="a-screen" x="0" y="0" width="58" height="180" rx="4" />
+            <text class="a-sub" x="29" y="194" text-anchor="middle" style="font-size: 9px;">display</text>
+            <!-- Mock render -->
+            <rect x="8" y="16" width="42" height="5" rx="2" fill="#D4A853" opacity="0.7"/>
+            <text x="29" y="55" text-anchor="middle" fill="#E8E4DE" font-family="monospace" font-size="11">03:14</text>
+            <circle cx="29" cy="90" r="16" fill="none" stroke="#5B8DEF" stroke-width="1.5" opacity="0.6" />
+            <circle cx="29" cy="90" r="4" fill="#5B8DEF" opacity="0.8"/>
+            <rect x="8" y="130" width="42" height="3" rx="1.5" fill="#7AB38C" opacity="0.6"/>
+            <rect x="8" y="138" width="32" height="3" rx="1.5" fill="#7AB38C" opacity="0.4"/>
+          </g>
+
+          <!-- Encoder -->
+          <g transform="translate(250, 62)">
+            <text class="a-sub" x="20" y="-2" text-anchor="middle" style="font-size: 9px;">encoder</text>
+            <circle cx="20" cy="20" r="18" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" opacity="0.6"/>
+            <circle cx="20" cy="20" r="6" fill="var(--accent)" opacity="0.7"/>
+            <!-- Activity indicator -->
+            <circle class="a-dot a-pulse" cx="20" cy="20" r="2"/>
+          </g>
+        </g>
+
+        <!-- Big labeled arrow: DIRECT LVGL RENDERING (emphasizes execution on device) -->
+        <g>
+          <path class="a-arrow-out" d="M 728 144 C 770 144, 790 180, 790 220" fill="none" stroke="#D4A853" stroke-width="1.5" marker-end="url(#arrow-amber)" />
+          <text class="a-sub" x="790" y="195" text-anchor="start" style="font-size: 9px;">direct LVGL</text>
+          <text class="a-sub" x="790" y="207" text-anchor="start" style="font-size: 9px;">render</text>
+        </g>
+
+        <g>
+          <path class="a-arrow-in" d="M 790 288 C 790 320, 770 340, 728 340" fill="none" stroke="#7AB38C" stroke-width="1.5" marker-end="url(#arrow-green)" />
+          <text class="a-sub" x="790" y="312" text-anchor="start" style="font-size: 9px; fill: #7AB38C;">on_event</text>
+        </g>
+
+        <!-- Legend -->
+        <g transform="translate(20, 408)">
+          <rect x="0" y="0" width="12" height="12" fill="rgba(212, 168, 83, 0.15)" stroke="rgba(212, 168, 83, 0.6)" stroke-width="1.5"/>
+          <text class="a-sub" x="18" y="10">primary execution</text>
+
+          <rect x="160" y="0" width="12" height="12" fill="rgba(196, 107, 107, 0.05)" stroke="rgba(196, 107, 107, 0.25)" stroke-dasharray="2 3"/>
+          <text class="a-sub" x="178" y="10">optional / secondary</text>
+
+          <line x1="320" y1="6" x2="340" y2="6" stroke="#D4A853" stroke-width="1.5" stroke-dasharray="3 6"/>
+          <text class="a-sub" x="346" y="10">host &rarr; device</text>
+
+          <line x1="440" y1="6" x2="460" y2="6" stroke="#7AB38C" stroke-width="1.5" stroke-dasharray="3 6"/>
+          <text class="a-sub" x="466" y="10">device &rarr; host</text>
+        </g>
+      </svg>
+      </div>
+
+      <p class="fade-in" style="font-size: var(--text-sm); color: var(--text-secondary);">
+        The firmware loads <code>/fs/app.py</code> on boot and runs it in a MicroPython interpreter
+        with a 20 KiB heap. Your code calls directly into LVGL to build widget trees on the display.
+        A file-watcher hot-reloads the script with a 2-second debounce whenever you save. The
+        <code>worker.py</code> on the host side is optional &mdash; you only need it when the
+        device can&rsquo;t do something itself (typically: HTTP requests or spawning subprocesses).
+        The two sides communicate via JSON-RPC under a shared <code>wlsdk.*</code> method namespace.
+      </p>
+    </section>
+
+    <!-- API Reference: Device Side -->
+    <section class="section container">
+      <div class="section-label fade-in">Device API</div>
+      <h2 class="fade-in">The wlsdk Module &mdash; On Device</h2>
+      <p class="fade-in">
+        When <code>app.py</code> runs on the device, you have access to two modules:
+        <code>wlsdk</code> (Work Louder&rsquo;s SDK surface) and <code>lvgl</code>
+        (the full LVGL 9 widget library, 481 bindings). A single global, <code>lv_root</code>,
+        is injected as the LVGL parent for your UI elements.
+      </p>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">Lifecycle Hooks</h3>
+      <p class="fade-in">
+        Your script can define up to four optional top-level functions. The firmware calls them
+        at specific points in the widget lifecycle:
+      </p>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead><tr><th>Function</th><th>When called</th><th>Arguments</th></tr></thead>
+          <tbody>
+            <tr><td><code>start()</code></td><td>Once, after the script body runs</td><td>None</td></tr>
+            <tr><td><code>update()</code></td><td>Every frame (display refresh loop)</td><td>None</td></tr>
+            <tr><td><code>on_event(event_type, event_index, event_value)</code></td><td>On button press/release or encoder turn</td><td>3 ints</td></tr>
+            <tr><td><code>end()</code></td><td>On teardown (before reload or screen exit)</td><td>None</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">wlsdk Submodules</h3>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead><tr><th>Submodule</th><th>Purpose</th><th>Key functions</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>wlsdk.ui</code></td>
+              <td>Screen behavior &amp; system fonts (stock LVGL Montserrat)</td>
+              <td><code>get_root()</code>, <code>set_grab_input()</code>, <code>set_block_input()</code>, <code>set_stay_on_screen()</code>, <code>set_disable_overlay()</code>, <code>FONT.BIG</code>, <code>FONT.MEDIUM</code>, <code>FONT.SMALL</code></td>
+            </tr>
+            <tr>
+              <td><code>wlsdk.EVENT</code></td>
+              <td>Constants for <code>on_event</code> dispatch</td>
+              <td><code>BUTTON</code> (0), <code>ENCODER</code> (1), <code>BUTTON_DOWN</code>, <code>BUTTON_UP</code>, <code>ENCODER_RIGHT</code>, <code>ENCODER_LEFT</code></td>
+            </tr>
+            <tr>
+              <td><code>wlsdk.time</code></td>
+              <td>Frame timing (for animation)</td>
+              <td><code>get_delta()</code>, <code>get_elapsed()</code>, <code>get_frames()</code></td>
+            </tr>
+            <tr>
+              <td><code>wlsdk.sys</code></td>
+              <td>Platform info</td>
+              <td><code>get_platform_name()</code> &mdash; returns <code>"nomad-v1"</code></td>
+            </tr>
+            <tr>
+              <td><code>wlsdk.rpc</code></td>
+              <td>Bidirectional JSON-RPC with host</td>
+              <td><code>register(method, cb)</code>, <code>send_response(ctx, body)</code>, <code>send_error(ctx, code, msg)</code>, <code>send_notify(method, payload)</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="fade-in" style="margin-top: var(--space-lg); font-size: var(--text-sm); color: var(--text-secondary);">
+        Registered RPC methods are automatically namespaced under <code>wlsdk.</code> by the
+        runtime. If you register <code>"ping"</code>, the host calls <code>wlsdk.ping</code>.
+        The MicroPython stdlib is available: <code>sys</code>, <code>math</code>, <code>gc</code>,
+        <code>array</code>, <code>struct</code>.
+      </p>
+    </section>
+
+    <!-- API Reference: Host Side -->
+    <section class="section container">
+      <div class="section-label fade-in">Host API (Optional)</div>
+      <h2 class="fade-in">worker.py &mdash; For When the Device Can&rsquo;t</h2>
+      <p class="fade-in">
+        If your widget needs to fetch data from the internet or run shell commands, you write a
+        companion <code>worker.py</code>. It runs in a Pyodide sandbox inside the Input app on
+        the host. Its API is smaller and deliberately host-shaped:
+      </p>
+      <div class="table-wrap fade-in">
+        <table>
+          <thead><tr><th>Function</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>log(msg)</code></td><td>Write to the Input app log console</td></tr>
+            <tr><td><code>register_notify(method)</code></td><td>Subscribe to a notify method triggered from the device</td></tr>
+            <tr><td><code>send_rpc(method, params)</code></td><td>Send a JSON-RPC message to the device (auto-prefixed <code>wlsdk.</code>)</td></tr>
+            <tr><td><code>exec_process(cmd) -&gt; str</code></td><td>Run a shell command on the host machine. 10s timeout. <em>Use sparingly.</em></td></tr>
+            <tr><td><code>handle_notify(method, params)</code> <span style="color: var(--accent); font-size: 0.8em;">you define</span></td><td>Required callback if you use <code>register_notify</code>. Receives notifies from the device.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="fade-in" style="font-size: var(--text-sm); color: var(--text-secondary);">
+        Pyodide runs inside Node.js, so you also have access to JavaScript globals via
+        <code>import js</code>. The most useful: <code>await js.fetch(url, options)</code> for
+        HTTP requests. All Python stdlib modules are available.
+      </p>
+    </section>
+
+    <!-- Example: Centered Clock -->
+    <section class="section container">
+      <div class="section-label fade-in">Example 1</div>
+      <h2 class="fade-in">A Centered Clock</h2>
+      <p class="fade-in">
+        The canonical demo &mdash; a label centered on the screen, updating every frame. This is the
+        entire <code>app.py</code>. The device runs it, renders it, and updates it at the display&rsquo;s
+        refresh rate. No host required.
+      </p>
+      <pre class="fade-in"><code class="language-python"><span class="tok-kw">import</span> <span class="tok-bi">lvgl</span> <span class="tok-kw">as</span> lv
+<span class="tok-kw">import</span> <span class="tok-bi">wlsdk</span>
+
+label <span class="tok-op">=</span> <span class="tok-kw">None</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">start</span><span class="tok-punc">():</span>
+    <span class="tok-kw">global</span> label
+    label <span class="tok-op">=</span> lv<span class="tok-punc">.</span>label<span class="tok-punc">(</span>lv_root<span class="tok-punc">)</span>
+    label<span class="tok-punc">.</span>set_style_text_font<span class="tok-punc">(</span>wlsdk<span class="tok-punc">.</span>ui<span class="tok-punc">.</span>FONT<span class="tok-punc">.</span>BIG<span class="tok-punc">,</span> <span class="tok-num">0</span><span class="tok-punc">)</span>
+    label<span class="tok-punc">.</span>set_style_text_color<span class="tok-punc">(</span>lv<span class="tok-punc">.</span>color_hex<span class="tok-punc">(</span><span class="tok-num">0xFFFFFF</span><span class="tok-punc">),</span> <span class="tok-num">0</span><span class="tok-punc">)</span>
+    label<span class="tok-punc">.</span>center<span class="tok-punc">()</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">update</span><span class="tok-punc">():</span>
+    elapsed <span class="tok-op">=</span> wlsdk<span class="tok-punc">.</span>time<span class="tok-punc">.</span>get_elapsed<span class="tok-punc">()</span>
+    mins <span class="tok-op">=</span> <span class="tok-bi">int</span><span class="tok-punc">(</span>elapsed<span class="tok-punc">)</span> <span class="tok-op">//</span> <span class="tok-num">60</span>
+    secs <span class="tok-op">=</span> <span class="tok-bi">int</span><span class="tok-punc">(</span>elapsed<span class="tok-punc">)</span> <span class="tok-op">%</span> <span class="tok-num">60</span>
+    label<span class="tok-punc">.</span>set_text<span class="tok-punc">(</span><span class="tok-str">"{:02d}:{:02d}"</span><span class="tok-punc">.</span><span class="tok-bi">format</span><span class="tok-punc">(</span>mins<span class="tok-punc">,</span> secs<span class="tok-punc">))</span></code></pre>
+    </section>
+
+    <!-- Example 2: Input handling -->
+    <section class="section container">
+      <div class="section-label fade-in">Example 2</div>
+      <h2 class="fade-in">Responding to Buttons and the Encoder</h2>
+      <p class="fade-in">
+        Call <code>wlsdk.ui.set_grab_input(True)</code> to take input focus away from the firmware,
+        then define <code>on_event</code>. The encoder value accumulates naturally &mdash;
+        <code>event_value</code> is <code>+1</code> for right, <code>-1</code> for left.
+      </p>
+      <pre class="fade-in"><code class="language-python"><span class="tok-kw">import</span> <span class="tok-bi">lvgl</span> <span class="tok-kw">as</span> lv
+<span class="tok-kw">import</span> <span class="tok-bi">wlsdk</span>
+
+status <span class="tok-op">=</span> <span class="tok-kw">None</span>
+counter <span class="tok-op">=</span> <span class="tok-num">0</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">start</span><span class="tok-punc">():</span>
+    <span class="tok-kw">global</span> status<span class="tok-punc">,</span> counter
+    wlsdk<span class="tok-punc">.</span>ui<span class="tok-punc">.</span>set_grab_input<span class="tok-punc">(</span><span class="tok-kw">True</span><span class="tok-punc">)</span>
+
+    cont <span class="tok-op">=</span> lv<span class="tok-punc">.</span>obj<span class="tok-punc">(</span>lv_root<span class="tok-punc">)</span>
+    cont<span class="tok-punc">.</span>set_size<span class="tok-punc">(</span>lv<span class="tok-punc">.</span>PCT<span class="tok-punc">(</span><span class="tok-num">100</span><span class="tok-punc">),</span> lv<span class="tok-punc">.</span>PCT<span class="tok-punc">(</span><span class="tok-num">100</span><span class="tok-punc">))</span>
+    cont<span class="tok-punc">.</span>set_flex_flow<span class="tok-punc">(</span>lv<span class="tok-punc">.</span>FLEX_FLOW<span class="tok-punc">.</span>COLUMN<span class="tok-punc">)</span>
+    cont<span class="tok-punc">.</span>set_flex_align<span class="tok-punc">(</span>lv<span class="tok-punc">.</span>FLEX_ALIGN<span class="tok-punc">.</span>CENTER<span class="tok-punc">,</span> lv<span class="tok-punc">.</span>FLEX_ALIGN<span class="tok-punc">.</span>CENTER<span class="tok-punc">,</span> lv<span class="tok-punc">.</span>FLEX_ALIGN<span class="tok-punc">.</span>CENTER<span class="tok-punc">)</span>
+
+    status <span class="tok-op">=</span> lv<span class="tok-punc">.</span>label<span class="tok-punc">(</span>cont<span class="tok-punc">)</span>
+    status<span class="tok-punc">.</span>set_text<span class="tok-punc">(</span><span class="tok-str">"Waiting for input..."</span><span class="tok-punc">)</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">on_event</span><span class="tok-punc">(</span>event_type<span class="tok-punc">,</span> event_index<span class="tok-punc">,</span> event_value<span class="tok-punc">):</span>
+    <span class="tok-kw">global</span> counter
+    <span class="tok-kw">if</span> event_type <span class="tok-op">==</span> wlsdk<span class="tok-punc">.</span>EVENT<span class="tok-punc">.</span>BUTTON<span class="tok-punc">:</span>
+        <span class="tok-kw">if</span> event_value <span class="tok-op">==</span> wlsdk<span class="tok-punc">.</span>EVENT<span class="tok-punc">.</span>BUTTON_DOWN<span class="tok-punc">:</span>
+            status<span class="tok-punc">.</span>set_text<span class="tok-punc">(</span><span class="tok-str">"BTN {} DOWN"</span><span class="tok-punc">.</span><span class="tok-bi">format</span><span class="tok-punc">(</span>event_index<span class="tok-punc">))</span>
+    <span class="tok-kw">elif</span> event_type <span class="tok-op">==</span> wlsdk<span class="tok-punc">.</span>EVENT<span class="tok-punc">.</span>ENCODER<span class="tok-punc">:</span>
+        counter <span class="tok-op">+=</span> event_value
+        status<span class="tok-punc">.</span>set_text<span class="tok-punc">(</span><span class="tok-str">"ENC {} = {}"</span><span class="tok-punc">.</span><span class="tok-bi">format</span><span class="tok-punc">(</span>event_index<span class="tok-punc">,</span> counter<span class="tok-punc">))</span></code></pre>
+    </section>
+
+    <!-- Example 3: RPC with worker -->
+    <section class="section container">
+      <div class="section-label fade-in">Example 3</div>
+      <h2 class="fade-in">Two-File Widget &mdash; app.py + worker.py</h2>
+      <p class="fade-in">
+        Here&rsquo;s how the two files cooperate. The device-side <code>app.py</code> sends a
+        notify to the host when the user presses a button. The host-side
+        <code>worker.py</code> receives it, fetches data, and sends the result back via RPC.
+      </p>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl); font-family: var(--font-ui); font-size: var(--text-sm); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary);">app.py &mdash; on device</h3>
+      <pre class="fade-in"><code class="language-python"><span class="tok-kw">import</span> <span class="tok-bi">lvgl</span> <span class="tok-kw">as</span> lv
+<span class="tok-kw">import</span> <span class="tok-bi">wlsdk</span>
+
+price_label <span class="tok-op">=</span> <span class="tok-kw">None</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">start</span><span class="tok-punc">():</span>
+    <span class="tok-kw">global</span> price_label
+    price_label <span class="tok-op">=</span> lv<span class="tok-punc">.</span>label<span class="tok-punc">(</span>lv_root<span class="tok-punc">)</span>
+    price_label<span class="tok-punc">.</span>set_text<span class="tok-punc">(</span><span class="tok-str">"Press to refresh"</span><span class="tok-punc">)</span>
+    price_label<span class="tok-punc">.</span>center<span class="tok-punc">()</span>
+
+    wlsdk<span class="tok-punc">.</span>rpc<span class="tok-punc">.</span>register<span class="tok-punc">(</span><span class="tok-str">"write_price"</span><span class="tok-punc">,</span> handle_price<span class="tok-punc">)</span>
+    wlsdk<span class="tok-punc">.</span>ui<span class="tok-punc">.</span>set_grab_input<span class="tok-punc">(</span><span class="tok-kw">True</span><span class="tok-punc">)</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">on_event</span><span class="tok-punc">(</span>t<span class="tok-punc">,</span> i<span class="tok-punc">,</span> v<span class="tok-punc">):</span>
+    <span class="tok-kw">if</span> t <span class="tok-op">==</span> wlsdk<span class="tok-punc">.</span>EVENT<span class="tok-punc">.</span>BUTTON <span class="tok-kw">and</span> v <span class="tok-op">==</span> wlsdk<span class="tok-punc">.</span>EVENT<span class="tok-punc">.</span>BUTTON_DOWN<span class="tok-punc">:</span>
+        <span class="tok-com"># Tell the host we need fresh data</span>
+        wlsdk<span class="tok-punc">.</span>rpc<span class="tok-punc">.</span>send_notify<span class="tok-punc">(</span><span class="tok-str">"fetch_price"</span><span class="tok-punc">,</span> <span class="tok-kw">None</span><span class="tok-punc">)</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">handle_price</span><span class="tok-punc">(</span>ctx<span class="tok-punc">,</span> params<span class="tok-punc">):</span>
+    price_label<span class="tok-punc">.</span>set_text<span class="tok-punc">(</span><span class="tok-str">"${:,}"</span><span class="tok-punc">.</span><span class="tok-bi">format</span><span class="tok-punc">(</span>params<span class="tok-punc">))</span>
+    wlsdk<span class="tok-punc">.</span>rpc<span class="tok-punc">.</span>send_response<span class="tok-punc">(</span>ctx<span class="tok-punc">,</span> <span class="tok-kw">None</span><span class="tok-punc">)</span></code></pre>
+
+      <h3 class="fade-in" style="margin-top: var(--space-xl); font-family: var(--font-ui); font-size: var(--text-sm); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary);">worker.py &mdash; on host</h3>
+      <pre class="fade-in"><code class="language-python"><span class="tok-kw">import</span> <span class="tok-bi">js</span>
+
+register_notify<span class="tok-punc">(</span><span class="tok-str">"fetch_price"</span><span class="tok-punc">)</span>
+
+<span class="tok-kw">async</span> <span class="tok-kw">def</span> <span class="tok-def">fetch_price</span><span class="tok-punc">():</span>
+    response <span class="tok-op">=</span> <span class="tok-kw">await</span> js<span class="tok-punc">.</span>fetch<span class="tok-punc">(</span><span class="tok-str">"https://api.coinbase.com/v2/prices/BTC-USD/spot"</span><span class="tok-punc">)</span>
+    data <span class="tok-op">=</span> <span class="tok-kw">await</span> response<span class="tok-punc">.</span>json<span class="tok-punc">()</span>
+    send_rpc<span class="tok-punc">(</span><span class="tok-str">"write_price"</span><span class="tok-punc">,</span> <span class="tok-bi">int</span><span class="tok-punc">(</span><span class="tok-bi">float</span><span class="tok-punc">(</span>data<span class="tok-punc">.</span>data<span class="tok-punc">.</span>amount<span class="tok-punc">)))</span>
+
+<span class="tok-kw">def</span> <span class="tok-def">handle_notify</span><span class="tok-punc">(</span>method<span class="tok-punc">,</span> params<span class="tok-punc">):</span>
+    <span class="tok-kw">if</span> method <span class="tok-op">==</span> <span class="tok-str">"fetch_price"</span><span class="tok-punc">:</span>
+        fetch_price<span class="tok-punc">()</span></code></pre>
+
+      <p class="fade-in" style="margin-top: var(--space-md); font-size: var(--text-sm); color: var(--text-secondary);">
+        Press the button &mdash; the device emits a notify, the host fetches the BTC price,
+        the host calls back into the device with the result, and the device updates the
+        label. Clean, bidirectional, one namespace.
+      </p>
+    </section>
+
+    <!-- Demos from Work Louder -->
+    <section class="section container">
+      <div class="section-label fade-in">Demos</div>
+      <h2 class="fade-in">Four Demos from Work Louder</h2>
+      <p class="fade-in">
+        Work Louder&rsquo;s own
+        <a href="https://worklouder.notion.site/Examples-32d63f3bbc5a8039a772f2dbd2828b51" target="_blank" rel="noopener">Examples page</a>
+        links to four reference widgets. Captured here directly from the docs &mdash; these are
+        the only concrete working examples of the SDK we&rsquo;ve seen.
+      </p>
+
+      <style>
+        .demo-card {
+          background: var(--surface);
+          border: 1px solid var(--surface-border);
+          border-radius: 10px;
+          padding: var(--space-xl);
+          margin-bottom: var(--space-lg);
+        }
+        .demo-card h3 {
+          font-family: var(--font-display);
+          font-size: var(--text-xl);
+          margin-bottom: var(--space-xs);
+          display: flex;
+          align-items: baseline;
+          gap: var(--space-sm);
+        }
+        .demo-card h3 .demo-emoji {
+          font-size: 1em;
+        }
+        .demo-card .demo-sub {
+          font-family: var(--font-mono);
+          font-size: var(--text-xs);
+          color: var(--text-tertiary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: var(--space-md);
+        }
+        .demo-card .demo-desc {
+          font-size: var(--text-sm);
+          color: var(--text-secondary);
+          margin-bottom: var(--space-md);
+        }
+        .demo-card .demo-link {
+          font-family: var(--font-ui);
+          font-size: var(--text-sm);
+          color: var(--accent);
+        }
+        .demo-techniques {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--space-xs);
+          margin-top: var(--space-sm);
+        }
+        .demo-techniques .tag {
+          font-family: var(--font-mono);
+          font-size: 0.7rem;
+          padding: 3px 8px;
+          border-radius: 4px;
+          background: var(--accent-dim);
+          color: var(--accent);
+        }
+      </style>
+
+      <div class="stagger">
+
+        <div class="demo-card fade-in">
+          <h3><span class="demo-emoji">&#127752;</span> Rainbow Bubble Shader</h3>
+          <div class="demo-sub">single-file &middot; 140 lines &middot; app.py only</div>
+          <p class="demo-desc">
+            A full-screen HSV shader rendered as a grid of LVGL cells. Computes per-cell distance
+            and angle from screen center once (in <code>start()</code>), then in <code>update()</code>
+            animates hue based on angle and brightness based on a distance-based sine wave. Works
+            without a host &mdash; everything runs on the device.
+          </p>
+          <div class="demo-techniques">
+            <span class="tag">lv.obj grid</span>
+            <span class="tag">HSV &rarr; RGB</span>
+            <span class="tag">wlsdk.time.get_delta</span>
+            <span class="tag">wlsdk.time.get_frames</span>
+            <span class="tag">on_event</span>
+            <span class="tag">lv.color_make</span>
+          </div>
+          <p style="margin-top: var(--space-md);">
+            <a class="demo-link" href="https://worklouder.notion.site/Demo-1-Rainbow-31b63f3bbc5a80c6bea9d8bf86238a25" target="_blank" rel="noopener">Source &rarr;</a>
+          </p>
+        </div>
+
+        <div class="demo-card fade-in">
+          <h3><span class="demo-emoji">&#128104;&#127995;&#8205;&#128187;</span> RPC Counter</h3>
+          <div class="demo-sub">single-file &middot; 42 lines &middot; app.py only</div>
+          <p class="demo-desc">
+            Demonstrates bidirectional JSON-RPC. Registers three methods (<code>add</code>,
+            <code>sub</code>, <code>get</code>) that mutate and read a shared counter. Button presses
+            on the device also increment the counter via <code>on_event</code>. Host and device stay
+            in sync, each able to kick the other.
+          </p>
+          <div class="demo-techniques">
+            <span class="tag">wlsdk.rpc.register</span>
+            <span class="tag">wlsdk.rpc.send_response</span>
+            <span class="tag">lambda handlers</span>
+            <span class="tag">on_event</span>
+            <span class="tag">wlsdk.ui.FONT.BIG</span>
+          </div>
+          <p style="margin-top: var(--space-md);">
+            <a class="demo-link" href="https://worklouder.notion.site/Demo-2-RPC-31b63f3bbc5a80158981c83aeeedb1cf" target="_blank" rel="noopener">Source &rarr;</a>
+          </p>
+        </div>
+
+        <div class="demo-card fade-in">
+          <h3><span class="demo-emoji">&#128176;</span> BTC Price Tracker</h3>
+          <div class="demo-sub">two-file &middot; 141 lines &middot; app.py + worker.py</div>
+          <p class="demo-desc">
+            Displays live BTC, ETH, and SOL prices from Coinbase&rsquo;s public API. The device
+            polls via <code>send_notify("crypto.get_prices")</code> every 2 seconds; the host
+            <code>worker.py</code> receives the notify, <code>await js.fetch(...)</code>es each
+            price, and <code>send_rpc("crypto.write_prices", {...})</code>s back. The device handler
+            updates three styled cards with colored vertical accent bars.
+          </p>
+          <div class="demo-techniques">
+            <span class="tag">flex layout</span>
+            <span class="tag">card design</span>
+            <span class="tag">js.fetch</span>
+            <span class="tag">rpc.send_notify</span>
+            <span class="tag">refresh_timer</span>
+            <span class="tag">price formatting</span>
+          </div>
+          <p style="margin-top: var(--space-md);">
+            <a class="demo-link" href="https://worklouder.notion.site/Demo-3-BTC-Price-Tracker-31b63f3bbc5a808a84a5c3aa7342c488" target="_blank" rel="noopener">Source &rarr;</a>
+          </p>
+        </div>
+
+        <div class="demo-card fade-in">
+          <h3><span class="demo-emoji">&#128200;</span> Sys Stats (macOS)</h3>
+          <div class="demo-sub">two-file &middot; 278 lines &middot; app.py + worker.py + docs</div>
+          <p class="demo-desc">
+            The most complete demo. Shows CPU load and temp, GPU load and temp, and memory usage.
+            The host <code>worker.py</code> shells out to
+            <a href="https://github.com/vladkens/macmon" target="_blank" rel="noopener">macmon</a>
+            via <code>exec_process("macmon -i 800 pipe -s 1")</code>, parses the JSON, and
+            <code>send_rpc("monitor.write_data", [...])</code>s a positional array back every
+            10&thinsp;seconds. The device renders three sections (CPU / GPU / Memory) with
+            placeholder dashes until data arrives. Includes full documentation, an ASCII sequence
+            diagram, and troubleshooting notes.
+          </p>
+          <div class="demo-techniques">
+            <span class="tag">exec_process</span>
+            <span class="tag">async poll loop</span>
+            <span class="tag">asyncio.ensure_future</span>
+            <span class="tag">json.loads</span>
+            <span class="tag">section layout</span>
+            <span class="tag">safe_float guard</span>
+            <span class="tag">gc.collect</span>
+          </div>
+          <p style="margin-top: var(--space-md);">
+            <a class="demo-link" href="https://worklouder.notion.site/Demo-4-Sys-Stats-32d63f3bbc5a80eda888ff59d6b582f0" target="_blank" rel="noopener">Source &rarr;</a>
+          </p>
+        </div>
+
+      </div>
+
+      <div class="card fade-in" style="margin-top: var(--space-xl); border-left: 3px solid var(--accent); background: rgba(212, 168, 83, 0.04);">
+        <h4 style="color: var(--accent);">Small API Discrepancy Noted</h4>
+        <p style="margin: 0; font-size: var(--text-sm);">
+          The Rainbow demo uses <code>wlsdk.event.EVENT_BUTTON</code> (lowercase <code>event</code>
+          submodule with an <code>EVENT_</code>-prefixed constant), while the official docs use
+          <code>wlsdk.EVENT.BUTTON</code> (uppercase, no prefix). One of them is out of date. The
+          other demos use the uppercase <code>wl.EVENT.BUTTON</code> form consistently &mdash;
+          suggesting the Rainbow demo is the older one and the docs reflect the current API.
+          Expect API churn: Work Louder&rsquo;s docs explicitly warn the SDK is experimental.
+        </p>
+      </div>
+    </section>
+
+    <!-- What This Enables -->
+    <section class="section container">
+      <div class="section-label fade-in">Capabilities</div>
+      <h2 class="fade-in">What This Enables</h2>
+      <p class="fade-in">
+        With Python running on the device and the full LVGL widget library at your fingertips,
+        the surface area of what you can build is much wider than a typical macropad SDK.
+      </p>
+
+      <div class="card-grid stagger" style="margin-top: var(--space-lg);">
+        <div class="card fade-in">
+          <h4 style="color: var(--accent);">Draw Anything</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            The full LVGL widget library is available: labels, arcs, charts, canvases, flex and
+            grid layouts, gradients, masks, animations. Build any UI the 100&times;310 (or 170&times;320)
+            display can show. Colors, fonts, sizes &mdash; your choice.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--blue);">Real Frame Loop</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            <code>update()</code> runs every frame. Combined with <code>wlsdk.time.get_delta()</code>,
+            this lets you write frame-rate-independent animations, real-time counters, or dashboards
+            that refresh at display rate.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--green);">Direct Hardware Input</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            Buttons and encoder ticks arrive in <code>on_event</code> directly from the firmware.
+            No host in the loop, no round-trip latency. Set <code>grab_input(True)</code> and the
+            device&rsquo;s physical controls are yours alone.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: #C9A0DC;">Hot Reload</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            Save <code>app.py</code> and the firmware tears down your widget, reloads it from
+            <code>/fs/app.py</code>, and restarts. No reboot, no flashing, no manual reload.
+            Edit-save-see, like a desktop app.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--red);">Error Overlay</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            Uncaught exceptions are caught by the runtime and rendered as a gray overlay with
+            the traceback directly on the device&rsquo;s display. You can see what broke without
+            plugging into a log. Upload a fix &mdash; the overlay clears.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--amber);">Host Bridge When You Need It</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            If a widget needs external data, the optional <code>worker.py</code> runs on the host
+            with access to <code>js.fetch</code>, subprocesses, and the full Python stdlib. Only
+            pay the host-dependency cost when you need it.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Constraints & Early Alpha -->
+    <section class="section container">
+      <div class="section-label fade-in">Constraints</div>
+      <h2 class="fade-in">What You Should Know Going In</h2>
+
+      <div class="card-grid stagger" style="margin-top: var(--space-lg);">
+        <div class="card fade-in">
+          <h4 style="color: var(--text-secondary);">20 KiB heap</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            MicroPython gets a 20 KiB heap on the ESP32-S3. Plenty for most widgets, but
+            memory-hungry operations (big buffers, dense data structures) need care.
+            <code>import gc; gc.collect()</code> is your friend.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--text-secondary);">Small stdlib</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            On-device stdlib is the MicroPython subset: <code>sys</code>, <code>math</code>,
+            <code>gc</code>, <code>array</code>, <code>struct</code>. If you need HTTP, JSON
+            decoding, regex, or anything heavier, run it in <code>worker.py</code> on the host.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--text-secondary);">Experimental</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            Work Louder&rsquo;s docs open with &ldquo;This is very much &#9888;&#65039; EXPERIMENTAL
+            &#9888;&#65039; - APIs and interfaces can and will probably change.&rdquo; Early alpha
+            means things move. Expect API churn.
+          </p>
+        </div>
+      </div>
+
+      <div class="card fade-in" style="margin-top: var(--space-xl); border-left: 3px solid var(--amber); background: rgba(212, 168, 83, 0.04);">
+        <h4 style="color: var(--amber);">The Developer Experience Is Thin</h4>
+        <p style="margin: 0; font-size: var(--text-sm);">
+          The Input app ships with a CodeMirror Python editor but <strong>no example widgets, no
+          starter templates, no embedded API reference</strong>. To write a widget you open an
+          empty buffer, look up the
+          <a href="https://worklouder.notion.site/Firmware-Side-32d63f3bbc5a805e9cc0eaf4e06317ba" target="_blank" rel="noopener">Firmware-Side docs</a>
+          on Notion, and start typing. The SDK is remarkably capable for something this raw; the
+          polish will come.
+        </p>
+      </div>
+
+      <div class="card fade-in" style="margin-top: var(--space-lg); border-left: 3px solid var(--blue); background: rgba(91, 141, 239, 0.04);">
+        <h4 style="color: var(--blue);">Work Louder&rsquo;s Stated Roadmap</h4>
+        <p style="margin: 0 0 var(--space-sm) 0; font-size: var(--text-sm);">
+          Custom widgets were part of the Nomad&nbsp;E&rsquo;s
+          <a href="https://www.kickstarter.com/projects/nomade/nomad-e-by-work-louder" target="_blank" rel="noopener">Kickstarter roadmap</a>
+          from launch. Product reviews since then confirm Work Louder&rsquo;s intent to support
+          <em>third-party widget submissions</em> &mdash; suggesting a curated ecosystem model where
+          developers author widgets in Python and Work Louder distributes them. What we&rsquo;ve
+          captured on this page is the infrastructure for that: the MicroPython runtime, the
+          <code>wlsdk</code> module, the RPC pipe, the hot reload system, the error overlay.
+        </p>
+        <p style="margin: 0; font-size: var(--text-sm);">
+          Still not publicly announced: the widget marketplace mechanism, the SDK source-code
+          availability, the timeline for porting to k&middot;no&middot;b&middot;1 or Creator
+          Micro v2.
+        </p>
+      </div>
+    </section>
+
+    <!-- Availability -->
+    <section class="section container">
+      <div class="section-label fade-in">Availability</div>
+      <h2 class="fade-in">Today, Tomorrow, and Elsewhere</h2>
+
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr><th>Device</th><th>Stock Firmware</th><th>SDK Firmware</th><th>SDK App</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Nomad E</td>
+              <td>v0.9.0 (Apr 2026)</td>
+              <td><strong style="color: var(--green);">Yes</strong> &mdash; v0.9.0-sdk.1 (Mar 2026)</td>
+              <td><strong style="color: var(--green);">Yes</strong> &mdash; Input 0.15.0-sdk.1</td>
+            </tr>
+            <tr>
+              <td>k&middot;no&middot;b&middot;1</td>
+              <td>v0.3.2-rc.19 (Apr 2026)</td>
+              <td style="color: var(--text-tertiary);">Not yet</td>
+              <td style="color: var(--text-tertiary);">Not yet</td>
+            </tr>
+            <tr>
+              <td>Creator Micro v2</td>
+              <td>v0.4.0-rc.14 (Apr 2026)</td>
+              <td style="color: var(--text-tertiary);">Not yet</td>
+              <td style="color: var(--text-tertiary);">Not yet</td>
+            </tr>
+            <tr>
+              <td>XYZ wb r2</td>
+              <td>(unreleased)</td>
+              <td style="color: var(--text-tertiary);">Not yet</td>
+              <td style="color: var(--text-tertiary);">Not yet</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="fade-in">
+        The SDK exists only for the Nomad&nbsp;E today. Crucially, the SDK is a <strong>separate
+        firmware build</strong> &mdash; stock k&middot;no&middot;b&middot;1 and stock
+        Creator Micro v2 firmware do <em>not</em> ship the MicroPython runtime at all (we verified
+        with strings analysis: zero MicroPython symbols in stock firmwares). The SDK integration
+        (<code>src/sdk/</code>, the <code>custom_widget</code> screen, the MicroPython embed)
+        appears to be modular within the shared <code>nomad-e-fw</code> codebase, so porting to
+        other devices is mostly about display geometry, encoder wiring, and product-specific
+        defaults &mdash; not re-implementing the SDK. The host-side SDK app is already
+        device-agnostic.
+      </p>
+
+      <div class="card fade-in" style="margin-top: var(--space-lg); border-left: 3px solid var(--blue); background: rgba(91, 141, 239, 0.04);">
+        <h4 style="color: var(--blue);">Official Sources</h4>
+        <p style="margin: 0 0 var(--space-sm) 0; font-size: var(--text-sm);">
+          Work Louder&rsquo;s own documentation is here &mdash; the authoritative reference for
+          everything on this page:
+        </p>
+        <ul style="margin: 0; padding-left: var(--space-lg); font-size: var(--text-sm); line-height: 1.7;">
+          <li><a href="https://worklouder.notion.site/sdk-docs" target="_blank" rel="noopener">WL SDK &mdash; Documentation</a> &mdash; main index</li>
+          <li><a href="https://worklouder.notion.site/Firmware-Side-32d63f3bbc5a805e9cc0eaf4e06317ba" target="_blank" rel="noopener">Firmware Side (app.py)</a> &mdash; device MicroPython API, lifecycle, wlsdk submodules, examples</li>
+          <li><a href="https://worklouder.notion.site/Input-Side-32c63f3bbc5a80db9b6bf7f80186596e" target="_blank" rel="noopener">Input Side (worker.py)</a> &mdash; host Pyodide API for external data</li>
+          <li><a href="https://worklouder.notion.site/Examples-32d63f3bbc5a8039a772f2dbd2828b51" target="_blank" rel="noopener">Examples</a> &mdash; demo widgets (Rainbow, RPC, BTC price tracker, Sys Stats)</li>
+          <li><a href="https://github.com/worklouder/input-releases-internal/releases/tag/sdk-alpha-0.1" target="_blank" rel="noopener">sdk-alpha-0.1 release</a> &mdash; firmware and app binaries</li>
+        </ul>
+      </div>
+
+      <div class="card fade-in" style="margin-top: var(--space-lg); border-left: 3px solid var(--accent); background: rgba(212, 168, 83, 0.04);">
+        <h4 style="color: var(--accent);">On Source Availability</h4>
+        <p style="margin: 0; font-size: var(--text-sm);">
+          The SDK is distributed as binary only. No source code for the SDK firmware, the
+          SDK-enabled Input app, or example widget scripts has been published anywhere public.
+          The firmware references source paths like <code>/src/sdk/wl_sdk.cpp</code> and
+          <code>/src/sdk/mp_json_convert.cpp</code>, confirming the source exists &mdash; just
+          not at a URL we can visit. The auto-generated GitHub source archive for the
+          <code>sdk-alpha-0.1</code> tag contains only a 5-byte README.
+        </p>
+      </div>
+    </section>
+
+    <!-- Get the SDK -->
+    <section class="section container">
+      <div class="section-label fade-in">Try It Yourself</div>
+      <h2 class="fade-in">Getting the SDK</h2>
+      <p class="fade-in">
+        If you have a Nomad&nbsp;E, you can experiment with the SDK today.
+      </p>
+
+      <ol style="padding-left: var(--space-xl); font-family: var(--font-body); font-size: var(--text-base); line-height: var(--leading-normal); color: var(--text-secondary);" class="fade-in">
+        <li style="margin-bottom: var(--space-md);">
+          Download the SDK firmware and app from the
+          <a href="https://github.com/worklouder/input-releases-internal/releases/tag/sdk-alpha-0.1" target="_blank" rel="noopener">sdk-alpha-0.1 release</a>
+          on GitHub.
+        </li>
+        <li style="margin-bottom: var(--space-md);">
+          Flash <code>firmware_v0.9.0-sdk.1_merged.bin</code> to your Nomad&nbsp;E via the
+          Input app&rsquo;s bootloader flow, or manually with <code>esptool</code>.
+        </li>
+        <li style="margin-bottom: var(--space-md);">
+          Install the corresponding <code>input-0.15.0-sdk.1</code> app (macOS arm64, macOS x64,
+          or Windows) &mdash; regular Input releases don&rsquo;t have the Python editor.
+        </li>
+        <li style="margin-bottom: var(--space-md);">
+          Connect the device, open the Custom Widget panel, write Python, upload.
+        </li>
+      </ol>
+
+      <div class="card fade-in" style="margin-top: var(--space-lg); border-left: 3px solid var(--red); background: rgba(196, 107, 107, 0.04);">
+        <h4 style="color: var(--red);">Don&rsquo;t Flash Nomad E Firmware on a k&middot;no&middot;b&middot;1</h4>
+        <p style="margin: 0; font-size: var(--text-sm);">
+          Display dimensions, encoder configuration, and pin mappings differ. Flashing
+          Nomad&nbsp;E firmware to a knob may produce a non-functional device. It&rsquo;s
+          recoverable via the bootloader but not trivial. If you want to experiment with
+          custom firmware on the knob, build from scratch &mdash; see
+          <a href="hardware.html">Hardware</a> for the platform details.
+        </p>
+      </div>
+    </section>
+
+    <!-- Prev / Next -->
+    <section class="section container" style="padding-bottom: var(--space-2xl);">
+      <div style="display: flex; justify-content: space-between;">
+        <a href="display.html" style="font-family: var(--font-ui); font-size: var(--text-sm);">&larr; Display</a>
+        <a href="configuration.html" style="font-family: var(--font-ui); font-size: var(--text-sm);">Configuration &rarr;</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>
+        Extending the Knob &mdash; an open research project.<br>
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+      <p>
+        Built with static HTML, CSS, and JS. No frameworks. No tracking.<br>
+        <a href="https://worklouder.cc/knob1" target="_blank" rel="noopener">worklouder.cc/knob1</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+  <script>
+    // --- Confetti burst on the shushing emoji ---
+    (function() {
+      const wrap = document.getElementById('emojiWrap');
+      const emoji = document.getElementById('sdkEmoji');
+      if (!wrap || !emoji) return;
+
+      const colors = [
+        '#D4A853', '#5B8DEF', '#7AB38C', '#C9A0DC',
+        '#C46B6B', '#E8E4DE', '#F5D58A', '#7FB3D5'
+      ];
+
+      function burst(count = 18) {
+        wrap.classList.add('burst');
+        wrap.classList.add('has-played');
+        setTimeout(() => wrap.classList.remove('burst'), 600);
+
+        const rect = emoji.getBoundingClientRect();
+        const wrapRect = wrap.getBoundingClientRect();
+        // Position particles relative to wrap (wrap has position: relative)
+
+        for (let i = 0; i < count; i++) {
+          const piece = document.createElement('span');
+          piece.className = 'confetti-piece';
+
+          const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+          const distance = 80 + Math.random() * 120;
+          const dx = Math.cos(angle) * distance;
+          const dy = Math.sin(angle) * distance + Math.random() * 40; // slight gravity
+          const rot = (Math.random() - 0.5) * 720 + 'deg';
+
+          piece.style.setProperty('--dx', dx + 'px');
+          piece.style.setProperty('--dy', dy + 'px');
+          piece.style.setProperty('--rot', rot);
+          piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+          piece.style.left = (rect.left - wrapRect.left + rect.width / 2 - 4) + 'px';
+          piece.style.top = (rect.top - wrapRect.top + rect.height / 2 - 7) + 'px';
+          piece.style.animationDelay = (Math.random() * 0.15) + 's';
+
+          wrap.appendChild(piece);
+
+          // Clean up after animation
+          setTimeout(() => piece.remove(), 2000);
+        }
+      }
+
+      // Auto-burst on scroll-into-view (first time)
+      let played = false;
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !played) {
+            played = true;
+            setTimeout(() => burst(22), 400); // slight delay after entering view
+            io.disconnect();
+          }
+        });
+      }, { threshold: 0.5 });
+      io.observe(wrap);
+
+      // Click triggers a fresh burst
+      wrap.addEventListener('click', () => burst(24));
+    })();
+  </script>
+</body>
+</html>

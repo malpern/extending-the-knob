@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Display — Extending the Knob</title>
+  <meta name="description" content="How the k·no·b·1's 100×310 pixel display works. LVGL v9 image format, the conversion pipeline, and how to push your own visuals.">
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    /* --- Display Page Specifics --- */
+    .display-hero {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3xl);
+      padding: var(--space-4xl) 0 var(--space-3xl);
+    }
+
+    .display-hero-text { flex: 1; }
+
+    .display-hero .device-mockup {
+      width: 140px;
+      flex-shrink: 0;
+    }
+
+    .display-hero .device-mockup .device-screen {
+      background: linear-gradient(180deg,
+        #2a1a0a 0%,
+        #3d2410 20%,
+        #1a3025 40%,
+        #0a1a2d 60%,
+        #1a0a2d 80%,
+        #0d0d15 100%
+      );
+      animation: screenShimmer 8s ease-in-out infinite;
+    }
+
+    @keyframes screenShimmer {
+      0%, 100% { filter: brightness(0.8); }
+      50% { filter: brightness(1.1); }
+    }
+
+    /* --- Comparison --- */
+    .display-compare {
+      display: flex;
+      gap: var(--space-2xl);
+      align-items: flex-end;
+      justify-content: center;
+      margin: var(--space-2xl) 0;
+    }
+
+    .display-compare .device-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .display-compare .device-label {
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .display-compare .dimensions {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-tertiary);
+    }
+
+    .mini-screen {
+      border: 1px solid var(--surface-border);
+      border-radius: 4px;
+      background: var(--surface-solid);
+    }
+
+    .mini-screen.knob { width: 50px; height: 155px; }
+    .mini-screen.nomad { width: 85px; height: 160px; }
+
+    /* --- Binary Viewer --- */
+    .binary-viewer {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+      margin-bottom: var(--space-xl);
+      overflow-x: auto;
+      position: relative;
+    }
+
+    .binary-row {
+      display: flex;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 2;
+    }
+
+    .binary-offset {
+      color: var(--text-tertiary);
+      width: 70px;
+      flex-shrink: 0;
+    }
+
+    .binary-bytes {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .binary-byte {
+      padding: 1px 3px;
+      border-radius: 2px;
+      cursor: default;
+      transition: all var(--duration-fast) var(--ease-out);
+    }
+
+    .binary-byte:hover {
+      transform: scale(1.2);
+      z-index: 1;
+    }
+
+    .binary-byte.magic   { color: var(--accent); background: var(--accent-dim); }
+    .binary-byte.format  { color: var(--blue); background: var(--blue-dim); }
+    .binary-byte.dims    { color: var(--green); background: var(--green-dim); }
+    .binary-byte.reserved { color: var(--text-tertiary); }
+    .binary-byte.palette { color: #C9A0DC; background: rgba(201, 160, 220, 0.1); }
+    .binary-byte.pixel   { color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+
+    .binary-legend {
+      display: flex;
+      gap: var(--space-lg);
+      margin-top: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .binary-legend-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+    }
+
+    .binary-legend-item .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+    }
+
+    /* --- Format Breakdown --- */
+    .format-breakdown {
+      display: grid;
+      grid-template-columns: 100px 80px 1fr;
+      gap: 0;
+      margin-bottom: var(--space-xl);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      overflow: hidden;
+      font-size: var(--text-sm);
+    }
+
+    .format-breakdown > div {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .format-breakdown > div:nth-child(3n+1) {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      background: var(--surface-solid);
+    }
+
+    .format-breakdown > div:nth-child(3n+2) {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent);
+      background: var(--surface-solid);
+    }
+
+    .format-breakdown > div:nth-last-child(-n+3) {
+      border-bottom: none;
+    }
+
+    /* --- Pipeline Visualization --- */
+    .pipeline-visual {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: var(--space-2xl) 0;
+    }
+
+    .pipeline-visual .pv-step {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      position: relative;
+    }
+
+    .pipeline-visual .pv-step:first-child {
+      border-radius: 10px 10px 0 0;
+    }
+
+    .pipeline-visual .pv-step:last-child {
+      border-radius: 0 0 10px 10px;
+    }
+
+    .pipeline-visual .pv-step + .pv-step {
+      border-top: none;
+    }
+
+    .pipeline-visual .pv-arrow {
+      display: flex;
+      justify-content: center;
+      color: var(--text-tertiary);
+      font-size: var(--text-sm);
+      padding: var(--space-xs) 0;
+    }
+
+    .pv-step .pv-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .pv-step .pv-content {
+      flex: 1;
+    }
+
+    .pv-step .pv-content h3 {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .pv-step .pv-content p {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .pv-step .pv-data {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+      text-align: right;
+    }
+
+    /* --- Screen Content Types --- */
+    .screen-types {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-md);
+      margin: var(--space-xl) 0;
+    }
+
+    .screen-type {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 8px;
+      padding: var(--space-lg);
+      text-align: center;
+    }
+
+    .screen-type .st-icon {
+      font-size: 1.5rem;
+      margin-bottom: var(--space-sm);
+    }
+
+    .screen-type h4 {
+      font-family: var(--font-ui);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      margin-bottom: var(--space-xs);
+    }
+
+    .screen-type p {
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .screen-type code {
+      font-size: 0.7rem;
+    }
+
+    /* --- Palette Preview --- */
+    .palette-strip {
+      display: flex;
+      height: 32px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: var(--space-md) 0 var(--space-xl);
+    }
+
+    .palette-strip > div {
+      flex: 1;
+      transition: flex var(--duration) var(--ease-out);
+    }
+
+    .palette-strip:hover > div:hover {
+      flex: 4;
+    }
+
+    @media (max-width: 768px) {
+      .display-hero { flex-direction: column-reverse; text-align: center; }
+      .display-compare { flex-direction: row; gap: var(--space-xl); }
+      .format-breakdown { grid-template-columns: 80px 60px 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <a href="../index.html" class="nav-logo">
+      <span class="dot"></span>
+      extending the knob
+    </a>
+    <ul class="nav-links">
+      <li><a href="hardware.html">Hardware</a></li>
+      <li><a href="protocol.html">Protocol</a></li>
+      <li><a href="display.html" class="active">Display</a></li>
+      <li><a href="sdk.html">SDK</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+      <li><a href="tools.html">Tools</a></li>
+      <li><a href="confidence.html">Confidence</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+
+    <!-- Hero -->
+    <section class="display-hero container">
+      <div class="display-hero-text">
+        <h4 class="fade-in section-label" style="margin-bottom: var(--space-sm);">The Display</h4>
+        <h1 class="fade-in" style="font-size: var(--text-4xl);">100 Pixels Wide</h1>
+        <p class="fade-in" style="color: var(--text-secondary); font-size: var(--text-lg); line-height: var(--leading-snug); margin-top: var(--space-lg);">
+          A tall, narrow window into the device&rsquo;s soul. 100&times;310 pixels,
+          rendered by LVGL v9 in 8-bit indexed color with a 256-entry palette.
+          Every wallpaper is exactly 32,036&nbsp;bytes.
+        </p>
+      </div>
+      <div class="device-mockup fade-in">
+        <div class="device-screen"></div>
+      </div>
+    </section>
+
+    <!-- Display Comparison -->
+    <section class="section container">
+      <div class="section-label fade-in">Dimensions</div>
+      <h2 class="fade-in">Two Displays, Two Shapes</h2>
+      <p class="fade-in">
+        The k·no·b·1 and Nomad&nbsp;E have different display geometries.
+        The knob&rsquo;s screen is unusually tall and narrow &mdash; a 10:31 aspect ratio.
+      </p>
+
+      <div class="display-compare fade-in">
+        <div class="device-col">
+          <div class="mini-screen knob"></div>
+          <div class="device-label">k·no·b·1</div>
+          <div class="dimensions">100 &times; 310</div>
+        </div>
+        <div class="device-col">
+          <div class="mini-screen nomad"></div>
+          <div class="device-label">Nomad E</div>
+          <div class="dimensions">170 &times; 320</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LVGL Format Deep Dive -->
+    <section class="section container">
+      <div class="section-label fade-in">Binary Format</div>
+      <h2 class="fade-in">Anatomy of a Wallpaper</h2>
+      <p class="fade-in">
+        Wallpapers are stored on the device as <code>wallpaper_bg.bin</code> in
+        <a href="https://docs.lvgl.io/9.2/overview/image.html" target="_blank" rel="noopener">LVGL v9</a>
+        image format. The format uses 8-bit indexed color (I8): each pixel is a single byte
+        that indexes into a 256-color palette stored in the file header.
+      </p>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">File Structure</h3>
+
+      <div class="format-breakdown fade-in">
+        <div>Offset 0</div><div>1 byte</div><div>Magic number: <code>0x19</code> (LVGL v9 image identifier)</div>
+        <div>Offset 1</div><div>1 byte</div><div>Color format: <code>0x0A</code> (I8 = 8-bit indexed color)</div>
+        <div>Offset 2</div><div>2 bytes</div><div>Flags: <code>0x0000</code></div>
+        <div>Offset 4</div><div>2 bytes</div><div>Width in pixels (uint16 LE) &mdash; <code>0x0064</code> = 100</div>
+        <div>Offset 6</div><div>2 bytes</div><div>Height in pixels (uint16 LE) &mdash; <code>0x0136</code> = 310</div>
+        <div>Offset 8</div><div>2 bytes</div><div>Stride in bytes (uint16 LE) &mdash; <code>0x0064</code> = 100</div>
+        <div>Offset 10</div><div>2 bytes</div><div>Reserved: <code>0x0000</code></div>
+        <div>Offset 12</div><div>1024 bytes</div><div>Palette: 256 entries &times; 4 bytes each (ARGB8888, little-endian)</div>
+        <div>Offset 1036</div><div>31,000 bytes</div><div>Pixel data: 100 &times; 310 = 31,000 bytes (one palette index per pixel)</div>
+      </div>
+
+      <p class="fade-in" style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-secondary);">
+        Total: 12 + 1,024 + 31,000 = <strong style="color: var(--text)">32,036 bytes</strong>
+      </p>
+
+      <!-- Binary Viewer -->
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">Binary View</h3>
+      <p class="fade-in">
+        The first 48 bytes of a real wallpaper file. Hover over bytes to see
+        which region they belong to.
+      </p>
+
+      <div class="binary-viewer fade-in" id="binaryViewer"></div>
+
+      <div class="binary-legend fade-in">
+        <div class="binary-legend-item">
+          <div class="swatch" style="background: var(--accent-dim); border: 1px solid var(--accent);"></div>
+          Magic
+        </div>
+        <div class="binary-legend-item">
+          <div class="swatch" style="background: var(--blue-dim); border: 1px solid var(--blue);"></div>
+          Color Format
+        </div>
+        <div class="binary-legend-item">
+          <div class="swatch" style="background: var(--green-dim); border: 1px solid var(--green);"></div>
+          Dimensions
+        </div>
+        <div class="binary-legend-item">
+          <div class="swatch" style="background: rgba(201, 160, 220, 0.1); border: 1px solid #C9A0DC;"></div>
+          Palette Data
+        </div>
+        <div class="binary-legend-item">
+          <div class="swatch" style="background: rgba(255,255,255,0.03); border: 1px solid var(--text-tertiary);"></div>
+          Reserved
+        </div>
+      </div>
+    </section>
+
+    <!-- The Palette -->
+    <section class="section container">
+      <div class="section-label fade-in">Color</div>
+      <h2 class="fade-in">256 Colors, Chosen Well</h2>
+      <p class="fade-in">
+        The WASM converter quantizes any input image down to a 256-color palette
+        using perceptual color distance. Each palette entry is 4 bytes of ARGB8888.
+        The result is surprisingly good for 8-bit color &mdash; the limited palette
+        is a non-issue at 100 pixels wide.
+      </p>
+
+      <div class="palette-strip fade-in" id="paletteStrip"></div>
+
+      <p class="fade-in" style="font-size: var(--text-sm); color: var(--text-tertiary);">
+        Sample palette from a gradient wallpaper. Hover to expand individual colors.
+      </p>
+    </section>
+
+    <!-- Conversion Pipeline -->
+    <section class="section container">
+      <div class="section-label fade-in">Pipeline</div>
+      <h2 class="fade-in">From Image to Device</h2>
+      <p class="fade-in">
+        Uploading a wallpaper involves seven steps: resize, convert, chunk, and transmit.
+        The entire process is handled by the host &mdash; the device simply stores the
+        result on its <a href="hardware.html">LittleFS filesystem</a>.
+      </p>
+
+      <div class="pipeline-visual stagger">
+        <div class="pv-step fade-in">
+          <div class="pv-icon" style="background: var(--blue-dim); color: var(--blue);">1</div>
+          <div class="pv-content">
+            <h3>Input Image</h3>
+            <p>Any format: PNG, JPEG, WebP, TIFF. Any dimensions.</p>
+          </div>
+          <div class="pv-data">varies</div>
+        </div>
+
+        <div class="pv-step fade-in">
+          <div class="pv-icon" style="background: var(--blue-dim); color: var(--blue);">2</div>
+          <div class="pv-content">
+            <h3>Resize to 100&times;310</h3>
+            <p>Cover crop to match the display&rsquo;s 10:31 aspect ratio using <a href="https://sharp.pixelplumbing.com" target="_blank" rel="noopener">sharp</a>.</p>
+          </div>
+          <div class="pv-data">~60 KB PNG</div>
+        </div>
+
+        <div class="pv-step fade-in">
+          <div class="pv-icon" style="background: var(--accent-dim); color: var(--accent);">3</div>
+          <div class="pv-content">
+            <h3>LVGL Conversion</h3>
+            <p>Quantize to 256 colors. Build palette + indexed pixel data. WASM module handles this.</p>
+          </div>
+          <div class="pv-data">32,036 B</div>
+        </div>
+
+        <div class="pv-step fade-in">
+          <div class="pv-icon" style="background: var(--accent-dim); color: var(--accent);">4</div>
+          <div class="pv-content">
+            <h3>Delete Old Wallpaper</h3>
+            <p>Send <code>fs.delete</code> for <code>wallpaper_bg.bin</code> via <a href="protocol.html">JSON-RPC</a>.</p>
+          </div>
+          <div class="pv-data">1 RPC call</div>
+        </div>
+
+        <div class="pv-step fade-in">
+          <div class="pv-icon" style="background: var(--green-dim); color: var(--green);">5</div>
+          <div class="pv-content">
+            <h3>Chunked Upload</h3>
+            <p>Send via <code>fs.writebin</code> in 4,096-byte base64-encoded chunks with 50ms delays between chunks.</p>
+          </div>
+          <div class="pv-data">8 chunks</div>
+        </div>
+
+        <div class="pv-step fade-in">
+          <div class="pv-icon" style="background: var(--green-dim); color: var(--green);">6</div>
+          <div class="pv-content">
+            <h3>Checksum Verification</h3>
+            <p>Query <code>fs.list</code> with checksums. Compare SHA1 of uploaded data against device report.</p>
+          </div>
+          <div class="pv-data">1 RPC call</div>
+        </div>
+
+        <div class="pv-step fade-in">
+          <div class="pv-icon" style="background: var(--green-dim); color: var(--green);">7</div>
+          <div class="pv-content">
+            <h3>Display Updates</h3>
+            <p>The device renders the new wallpaper from its LittleFS filesystem using LVGL&rsquo;s binary image decoder.</p>
+          </div>
+          <div class="pv-data">&check;</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What You Can Show -->
+    <section class="section container">
+      <div class="section-label fade-in">Content</div>
+      <h2 class="fade-in">What the Screen Can Show</h2>
+      <p class="fade-in">
+        Beyond wallpapers, the display supports several content types driven
+        by different <a href="protocol.html">RPC methods</a>.
+      </p>
+
+      <div class="screen-types fade-in">
+        <div class="screen-type">
+          <div class="st-icon" style="color: var(--accent);">&#9632;</div>
+          <h4>Wallpaper</h4>
+          <p>Static image. PNG converted to LVGL I8.</p>
+          <p><code>wallpaper_bg.bin</code></p>
+        </div>
+        <div class="screen-type">
+          <div class="st-icon" style="color: var(--blue);">&#9673;</div>
+          <h4>Accent Color</h4>
+          <p>Home screen tint via RGB hex value.</p>
+          <p><code>ui.home_accent_color</code></p>
+        </div>
+        <div class="screen-type">
+          <div class="st-icon" style="color: var(--green);">&#9835;</div>
+          <h4>Now Playing</h4>
+          <p>Song title, artist, elapsed time, play state.</p>
+          <p><code>mp.write_info</code></p>
+        </div>
+        <div class="screen-type">
+          <div class="st-icon" style="color: #C9A0DC;">&#9635;</div>
+          <h4>Album Art</h4>
+          <p>80&times;80 thumbnail sent in chunks.</p>
+          <p><code>mp.write_artwork</code></p>
+        </div>
+        <div class="screen-type">
+          <div class="st-icon" style="color: var(--text-secondary);">&#9201;</div>
+          <h4>Timer Widget</h4>
+          <p>Built-in countdown/pomodoro timer.</p>
+          <p>Firmware-native</p>
+        </div>
+        <div class="screen-type">
+          <div class="st-icon" style="color: var(--blue);">&#9881;</div>
+          <h4>BLE Pairing</h4>
+          <p>Animated pairing screen and slot bubbles.</p>
+          <p>Firmware-native</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- LVGL Under the Hood -->
+    <section class="section container">
+      <div class="section-label fade-in">Under the Hood</div>
+      <h2 class="fade-in">A Full Widget Toolkit, Mostly Locked</h2>
+      <p class="fade-in">
+        Firmware analysis reveals a surprisingly rich LVGL v9 stack compiled into the device.
+        The hardware is capable of far more than the current RPC interface exposes.
+      </p>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">Compiled Widgets</h3>
+      <p class="fade-in">
+        11 LVGL widgets are linked into the firmware, along with both layout engines:
+      </p>
+
+      <div class="table-wrap fade-in">
+        <table>
+          <thead>
+            <tr><th>Widget</th><th>Type</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>lv_image</code></td><td>Display</td><td>Static &amp; tiled images, binary format only (no PNG/GIF decoding)</td></tr>
+            <tr><td><code>lv_label</code></td><td>Display</td><td>Text rendering with <code>set_text_fmt</code> for dynamic values</td></tr>
+            <tr><td><code>lv_arc</code></td><td>Display</td><td>Circular arc / gauge &mdash; ideal for rotary knob visualization</td></tr>
+            <tr><td><code>lv_chart</code></td><td>Display</td><td>Data charting with <code>get_point_pos_by_id</code></td></tr>
+            <tr><td><code>lv_span</code></td><td>Display</td><td>Rich text with mixed styles</td></tr>
+            <tr><td><code>lv_menu</code></td><td>Navigation</td><td>Page-based menu system</td></tr>
+            <tr><td><code>lv_dropdown</code></td><td>Input</td><td>Selection dropdown with options</td></tr>
+            <tr><td><code>lv_roller</code></td><td>Input</td><td>Scrollable roller selector</td></tr>
+            <tr><td><code>lv_textarea</code></td><td>Input</td><td>Text input with add/delete char support</td></tr>
+            <tr><td><code>lv_buttonmatrix</code></td><td>Input</td><td>Grid of buttons</td></tr>
+            <tr><td><code>lv_calendar</code></td><td>Input</td><td>Date picker with header arrows</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">Typography</h3>
+      <p class="fade-in">
+        Text uses <strong>stock LVGL Montserrat</strong> &mdash; anti-aliased vector type,
+        not bitmap. Confirmed via firmware string analysis (<code>font_montserrat_14</code>
+        is the bound font; other sizes are theme-resolved via
+        <code>theme_get_font_small/_normal/_large</code>). The SDK exposes three slots
+        as <code>wlsdk.ui.FONT.BIG</code> / <code>MEDIUM</code> / <code>SMALL</code>.
+      </p>
+
+      <h3 class="fade-in" style="margin-top: var(--space-2xl);">Animation &amp; Rendering</h3>
+      <p class="fade-in">
+        The animation system is compiled in with property animation, style transitions,
+        and screen transitions. The rendering stack supports blending to RGB565, RGB888,
+        and ARGB8888 with gradient support, radius/angle masking, and vector drawing.
+      </p>
+
+      <div class="card-grid stagger" style="margin-top: var(--space-lg);">
+        <div class="card fade-in">
+          <h4 style="color: var(--green);">Animation</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            <code>lv_anim_start</code> with linear, ease-in/out, bounce, overshoot paths.
+            Style transitions on state change (pressed, focused). Screen load animations
+            (fade, slide) via <code>scr_load_internal</code>.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--blue);">Layout</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            Both <strong>Flex</strong> and <strong>Grid</strong> layout engines are compiled in.
+            Object tree with parent/child relationships, z-ordering, and layer management
+            (top, system, bottom layers).
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: var(--accent);">Rendering</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            Software renderer with gradient calculation, radius and angle masking,
+            vector drawing, and image compositing. Multi-format blending support.
+          </p>
+        </div>
+        <div class="card fade-in">
+          <h4 style="color: #C9A0DC;">Input</h4>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); margin: 0;">
+            The rotary encoder is registered as an LVGL input device via
+            <code>lv_event_get_rotary_diff</code>. Focus groups enable
+            keyboard-style navigation of widgets.
+          </p>
+        </div>
+      </div>
+
+      <div class="card fade-in" style="margin-top: var(--space-lg); border-left: 3px solid var(--amber); background: rgba(212, 168, 83, 0.04);">
+        <p style="margin: 0; font-size: var(--text-sm);">
+          <strong style="color: var(--amber);">The gap:</strong> Almost none of these capabilities are
+          exposed through the JSON-RPC interface. Today, the host can only upload static wallpapers
+          and set an accent color. Animated, dynamic, or interactive screens require firmware modification.
+        </p>
+      </div>
+    </section>
+
+    <!-- Planned Widgets -->
+    <section class="section container">
+      <div class="section-label fade-in">Signals</div>
+      <h2 class="fade-in">The Widget Showcase, Read Carefully</h2>
+      <p class="fade-in">
+        The Input app&rsquo;s UI shows a widget grid with five slots. Only Wallpaper is
+        functional. The other four appear as preview images. This could mean roadmap,
+        but it could also mean aspirational mockups &mdash; or features scoped to a
+        different device. Here&rsquo;s what the evidence actually supports.
+      </p>
+
+      <style>
+        .widget-evidence {
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-md);
+          margin-top: var(--space-xl);
+        }
+        .widget-row {
+          display: grid;
+          grid-template-columns: 180px 1fr 100px;
+          gap: var(--space-lg);
+          padding: var(--space-lg);
+          background: var(--surface);
+          border: 1px solid var(--surface-border);
+          border-radius: 8px;
+          align-items: center;
+        }
+        .widget-row .name {
+          display: flex;
+          align-items: center;
+          gap: var(--space-sm);
+          font-family: var(--font-ui);
+          font-weight: 500;
+          color: var(--text);
+        }
+        .widget-row .name .glyph {
+          font-size: 1.1rem;
+        }
+        .widget-row .evidence-text {
+          font-size: var(--text-sm);
+          color: var(--text-secondary);
+          line-height: var(--leading-snug);
+        }
+        .widget-row .evidence-text code {
+          font-size: 0.85em;
+        }
+        .widget-row .strength {
+          font-family: var(--font-mono);
+          font-size: var(--text-xs);
+          text-align: center;
+          padding: var(--space-xs) var(--space-sm);
+          border-radius: 4px;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+        .strength.live       { background: var(--green-dim); color: var(--green); }
+        .strength.strong     { background: var(--blue-dim); color: var(--blue); }
+        .strength.moderate   { background: var(--accent-dim); color: var(--accent); }
+        .strength.weak       { background: var(--red-dim); color: var(--red); }
+        .strength.other-device { background: rgba(201, 160, 220, 0.12); color: #C9A0DC; }
+        @media (max-width: 768px) {
+          .widget-row { grid-template-columns: 1fr; }
+          .widget-row .strength { justify-self: start; }
+        }
+      </style>
+
+      <div class="widget-evidence fade-in">
+
+        <div class="widget-row">
+          <div class="name">
+            <span class="glyph" style="color: var(--green);">&#9632;</span>
+            Wallpaper
+          </div>
+          <div class="evidence-text">
+            <strong>Confirmed working.</strong> Full RPC flow verified: <code>fs.writebin</code>
+            &rarr; <code>wallpaper_bg.bin</code>. App has complete upload/delete/settings UI.
+            LVGL conversion round-trip tested end-to-end by this project.
+          </div>
+          <div class="strength live">Live</div>
+        </div>
+
+        <div class="widget-row">
+          <div class="name">
+            <span class="glyph" style="color: var(--green);">&#9673;</span>
+            Pomodoro Timer
+          </div>
+          <div class="evidence-text">
+            <strong>Shipped on Nomad&nbsp;E</strong> per product reviews and the Kickstarter
+            description: &ldquo;ships with 3 core widgets: a Pomodoro timer, a Tamagotchi (or
+            &lsquo;Kebogotchi&rsquo;) pet, and&hellip; a trusty clock.&rdquo; Firmware event constants
+            (<code>POMODORO_WORK_END</code>, <code>POMODORO_BREAK_END</code>, <code>TIMER_END</code>)
+            confirm the implementation. Not yet on k&middot;no&middot;b&middot;1.
+          </div>
+          <div class="strength other-device">Nomad E only</div>
+        </div>
+
+        <div class="widget-row">
+          <div class="name">
+            <span class="glyph" style="color: var(--green);">&#9201;</span>
+            Clock
+          </div>
+          <div class="evidence-text">
+            <strong>Shipped on Nomad&nbsp;E</strong> as one of the three core widgets.
+            Time-formatting strings in firmware (<code>%01zu:%02zu:%02zu</code>,
+            <code>%02zu:%02zu</code>) support the display. Not yet on the knob.
+          </div>
+          <div class="strength other-device">Nomad E only</div>
+        </div>
+
+        <div class="widget-row">
+          <div class="name">
+            <span class="glyph" style="color: var(--blue);">&#9835;</span>
+            Media Player
+          </div>
+          <div class="evidence-text">
+            RPC methods <code>mp.write_info</code> and <code>mp.write_artwork</code> are
+            implemented in firmware and wired up in the app. The device feature matrix lists
+            <code>mediaPlayer</code> as a <strong>Nomad&nbsp;E feature</strong>, not a
+            k&middot;no&middot;b&middot;1 feature. The knob&rsquo;s feature list is only
+            <code>alert, wallpaper</code>.
+          </div>
+          <div class="strength other-device">Nomad E only</div>
+        </div>
+
+        <div class="widget-row">
+          <div class="name">
+            <span class="glyph" style="color: var(--green);">&#9829;</span>
+            Kebogotchi
+          </div>
+          <div class="evidence-text">
+            <strong>Shipped on Nomad&nbsp;E</strong> &mdash; explicitly named in reviews as
+            one of the three core widgets (&ldquo;a Tamagotchi, or should I say
+            &lsquo;Kebogotchi&rsquo; pet&rdquo;). Implementation lives in firmware but we found
+            no dedicated strings in the binary &mdash; likely a native LVGL widget with
+            generic string handling. Not on the knob.
+          </div>
+          <div class="strength other-device">Nomad E only</div>
+        </div>
+
+      </div>
+
+      <div class="card fade-in" style="margin-top: var(--space-xl); border-left: 3px solid var(--blue); background: rgba(91, 141, 239, 0.04);">
+        <h4 style="color: var(--blue);">What &ldquo;Shipped&rdquo; Means Here</h4>
+        <p style="margin: 0 0 var(--space-sm) 0; font-size: var(--text-sm);">
+          The widgets above are written in C as native firmware screens &mdash; not SDK Python. The
+          app&rsquo;s widget-showcase UI displays them because the firmware renders them when
+          activated. For the k&middot;no&middot;b&middot;1, this matters: porting these widgets
+          to the knob requires a firmware release, not just an app update, because they&rsquo;re
+          compiled into the device.
+        </p>
+        <p style="margin: 0; font-size: var(--text-sm);">
+          The coming <a href="sdk.html">MicroPython SDK</a> changes this: user-written
+          <code>app.py</code> widgets are Python scripts running on top of the same LVGL layer
+          that the C widgets use. Once the SDK ports to the knob, anyone can author widgets
+          without touching firmware &mdash; and Work Louder has
+          <a href="https://worklouder.cc/nomad-e" target="_blank" rel="noopener">publicly stated</a>
+          that third-party widget submissions will eventually be accepted.
+        </p>
+      </div>
+    </section>
+
+    <!-- The SDK — link out to dedicated page -->
+    <section class="section container" id="sdk">
+      <div class="section-label fade-in">The SDK</div>
+      <h2 class="fade-in">There&rsquo;s a MicroPython SDK (On the Device Itself)</h2>
+      <p class="fade-in">
+        Work Louder ships a MicroPython SDK in the Nomad&nbsp;E firmware. User-written
+        <code>app.py</code> runs directly on the ESP32-S3 with full access to LVGL &mdash; draw any
+        widget, respond to encoder ticks in real time, animate at the display&rsquo;s refresh rate.
+        An optional host-side <code>worker.py</code> extends it for HTTP and subprocess calls.
+        Not yet on the k&middot;no&middot;b&middot;1, but the firmware codebase is shared.
+      </p>
+      <p class="fade-in">
+        <a href="sdk.html" style="font-family: var(--font-ui); font-size: var(--text-sm);">Read the full SDK analysis &rarr;</a>
+      </p>
+    </section>
+
+    <!-- Paths to Custom Screens -->
+    <section class="section container">
+      <div class="section-label fade-in">Going Further</div>
+      <h2 class="fade-in">Paths to Dynamic Content</h2>
+      <p class="fade-in">
+        Today, on stock k&middot;no&middot;b&middot;1 firmware, you can change the accent color and
+        upload a static wallpaper. That&rsquo;s the extent of host-addressable display control.
+        To get more &mdash; animations, custom widgets, live data &mdash; you have four paths.
+      </p>
+
+      <div class="pipeline stagger" style="margin-top: var(--space-xl);">
+        <div class="pipeline-step">
+          <div class="step-num" style="background: var(--accent-dim); color: var(--accent);">1</div>
+          <div class="step-content">
+            <h3>Wait for the SDK Port</h3>
+            <p>The MicroPython SDK already exists on the Nomad&nbsp;E. Stock
+              k&middot;no&middot;b&middot;1 firmware does <em>not</em> ship with MicroPython &mdash; the
+              SDK is a separate build, not a hidden capability. But the codebase is shared
+              (<code>nomad-e-fw</code>) and the SDK integration (<code>src/sdk/</code>,
+              <code>custom_widget</code> screen, MicroPython embed) is modular. A knob SDK firmware
+              release is entirely feasible &mdash; it&rsquo;s a product-roadmap question rather than
+              an engineering one. <strong>Highest expected value if and when it ships.</strong></p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-num" style="background: var(--green-dim); color: var(--green);">2</div>
+          <div class="step-content">
+            <h3>Flash the Nomad&nbsp;E SDK Firmware (Experimental)</h3>
+            <p>The SDK firmware exists as a public binary. Flashing it to a k&middot;no&middot;b&middot;1
+              <em>could</em> give you on-device Python immediately &mdash; but display dimensions,
+              encoder wiring, and pin assignments differ. Expect a non-functional device until
+              you work out the deltas or wait for an official port. Recoverable via bootloader.</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-num" style="background: var(--blue-dim); color: var(--blue);">3</div>
+          <div class="step-content">
+            <h3>Wallpaper Cycling Hack</h3>
+            <p>Rapidly upload wallpapers via <code>fs.writebin</code> to fake animation.
+              ~2.5&thinsp;FPS theoretical max (32&thinsp;KB &divide; 4&thinsp;KB chunks &times; 50ms
+              delay). Viable for slow status displays and dashboard content. Works on stock
+              firmware, no firmware changes needed.</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-num" style="background: var(--red-dim); color: var(--red);">4</div>
+          <div class="step-content">
+            <h3>Custom Firmware From Scratch</h3>
+            <p>Full control. ESP32-S3, PlatformIO, no secure boot, no flash encryption. Full
+              LVGL access &mdash; animations, widgets, arc gauges following the knob, smooth 60fps.
+              Display controller identified as <strong>ST7789</strong>
+              (<a href="hardware.html">Ghidra analysis</a>) &mdash; so a TFT_eSPI
+              <code>User_Setup.h</code> is now a matter of <code>#define ST7789_DRIVER</code>
+              plus the SPI pin map (still pending physical inspection).
+              Longest path, highest ceiling.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Try It -->
+    <section class="section container">
+      <div class="section-label fade-in">Try It</div>
+      <h2 class="fade-in">Preview Without a Device</h2>
+      <p class="fade-in">
+        The <a href="tools.html">knob-cli</a> tool includes an offline preview command
+        that converts any image through the full LVGL pipeline and back:
+      </p>
+
+      <pre class="fade-in"><code>node index.js wallpaper-preview photo.jpg preview.png
+
+Resized to 100&times;310
+LVGL format: 32,036 bytes
+Round-trip preview saved to preview.png</code></pre>
+
+      <p class="fade-in">
+        This validates the entire conversion pipeline without needing a device.
+        The output shows what the display would render.
+      </p>
+    </section>
+
+    <!-- Sources -->
+    <section class="section container">
+      <div class="section-label fade-in">Sources</div>
+      <h3 class="fade-in">References</h3>
+      <ul class="fade-in" style="list-style: none; padding: 0;">
+        <li style="margin-bottom: var(--space-sm);"><a href="https://docs.lvgl.io/9.2/overview/image.html" target="_blank" rel="noopener">LVGL v9 Image Documentation</a> &mdash; Official format specification</li>
+        <li style="margin-bottom: var(--space-sm);"><a href="https://sharp.pixelplumbing.com" target="_blank" rel="noopener">sharp</a> &mdash; High-performance Node.js image processing</li>
+        <li style="margin-bottom: var(--space-sm);"><a href="https://github.com/worklouder/input-linux" target="_blank" rel="noopener">Work Louder input-linux</a> &mdash; Community Linux port</li>
+        <li style="margin-bottom: var(--space-sm);"><a href="protocol.html">Protocol Reference</a> &mdash; RPC methods used for wallpaper transfer</li>
+        <li style="margin-bottom: var(--space-sm);"><a href="tools.html">knob-cli</a> &mdash; CLI tool with wallpaper commands</li>
+      </ul>
+    </section>
+
+    <!-- Prev/Next -->
+    <section class="section container" style="padding-bottom: var(--space-2xl);">
+      <div style="display: flex; justify-content: space-between;">
+        <a href="protocol.html" style="font-family: var(--font-ui); font-size: var(--text-sm);">&larr; The Protocol</a>
+        <a href="configuration.html" style="font-family: var(--font-ui); font-size: var(--text-sm);">Configuration &rarr;</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>
+        Extending the Knob &mdash; an open research project.<br>
+        <a href="https://github.com/malpern/extending-the-knob" target="_blank" rel="noopener">Source on GitHub</a>
+      </p>
+      <p>
+        Built with static HTML, CSS, and JS. No frameworks. No tracking.<br>
+        <a href="https://worklouder.cc/knob1" target="_blank" rel="noopener">worklouder.cc/knob1</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+  <script>
+    // --- Binary Viewer ---
+    (function() {
+      const viewer = document.getElementById('binaryViewer');
+      if (!viewer) return;
+
+      // Real LVGL header for a 100x310 wallpaper + start of palette
+      const headerHex = '19 0A 00 00 64 00 36 01 64 00 00 00'.split(' ');
+      const paletteHex = 'FF 1A 0E 0C FF 2D 1B 12 FF 3F 27 18 FF 52 34 1E FF 64 41 24 FF 77 4E 2A FF 89 5B 30 FF 9C 68 36 FF AE 75 3C FF C1 82 42 FF D3 8F 48 FF E6 9C 4E FF F8 A9 54 FF F0 B6 5A FF E8 C3 60 FF E0 D0 66'.split(' ');
+      const pixelHex = 'A3 A4 A5 A6 A7 A8 A9 AA AB AC AD AE AF B0 B1 B2 B3 B4 B5 B6'.split(' ');
+
+      const regions = [
+        ...headerHex.map((h, i) => {
+          let type, label;
+          if (i === 0) { type = 'magic'; label = 'Magic: 0x19 (LVGL v9)'; }
+          else if (i === 1) { type = 'format'; label = 'Color format: 0x0A (I8)'; }
+          else if (i >= 2 && i <= 3) { type = 'reserved'; label = 'Flags: 0x0000'; }
+          else if (i >= 4 && i <= 5) { type = 'dims'; label = 'Width: 100 (0x0064)'; }
+          else if (i >= 6 && i <= 7) { type = 'dims'; label = 'Height: 310 (0x0136)'; }
+          else if (i >= 8 && i <= 9) { type = 'dims'; label = 'Stride: 100 (0x0064)'; }
+          else { type = 'reserved'; label = 'Reserved'; }
+          return { hex: h, type, label, offset: i };
+        }),
+        ...paletteHex.map((h, i) => ({
+          hex: h, type: 'palette',
+          label: `Palette byte ${i} (entry ${Math.floor(i/4)}, ${['A','R','G','B'][i%4]})`,
+          offset: 12 + i
+        })),
+        ...pixelHex.map((h, i) => ({
+          hex: h, type: 'pixel',
+          label: `Pixel data (palette index 0x${h})`,
+          offset: 1036 + i
+        }))
+      ];
+
+      // Build rows of 16 bytes
+      for (let row = 0; row < regions.length; row += 16) {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'binary-row';
+
+        const offset = document.createElement('span');
+        offset.className = 'binary-offset';
+        const off = regions[row].offset;
+        offset.textContent = '0x' + off.toString(16).padStart(4, '0').toUpperCase();
+        rowEl.appendChild(offset);
+
+        const bytes = document.createElement('span');
+        bytes.className = 'binary-bytes';
+
+        const slice = regions.slice(row, row + 16);
+        slice.forEach((b) => {
+          const byteEl = document.createElement('span');
+          byteEl.className = `binary-byte ${b.type}`;
+          byteEl.textContent = b.hex;
+          byteEl.title = b.label;
+          bytes.appendChild(byteEl);
+        });
+
+        // Add gap indicator if there's a discontinuity
+        if (row > 0 && regions[row].offset !== regions[row-1].offset + 1) {
+          const gap = document.createElement('div');
+          gap.style.cssText = 'font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); padding: 4px 0 4px 70px;';
+          gap.textContent = `···  ${regions[row].offset - regions[row-1].offset - 1} bytes omitted  ···`;
+          viewer.appendChild(gap);
+        }
+
+        rowEl.appendChild(bytes);
+        viewer.appendChild(rowEl);
+      }
+    })();
+
+    // --- Palette Strip ---
+    (function() {
+      const strip = document.getElementById('paletteStrip');
+      if (!strip) return;
+
+      // Generate a sample palette (warm gradient)
+      const colors = [];
+      for (let i = 0; i < 64; i++) {
+        const t = i / 63;
+        const r = Math.round(20 + t * 220);
+        const g = Math.round(10 + t * 140);
+        const b = Math.round(5 + t * 60);
+        colors.push(`rgb(${r},${g},${b})`);
+      }
+      for (let i = 0; i < 64; i++) {
+        const t = i / 63;
+        const r = Math.round(240 - t * 200);
+        const g = Math.round(150 + t * 50);
+        const b = Math.round(60 + t * 100);
+        colors.push(`rgb(${r},${g},${b})`);
+      }
+      for (let i = 0; i < 64; i++) {
+        const t = i / 63;
+        const r = Math.round(40 + t * 20);
+        const g = Math.round(200 - t * 80);
+        const b = Math.round(160 + t * 80);
+        colors.push(`rgb(${r},${g},${b})`);
+      }
+      for (let i = 0; i < 64; i++) {
+        const t = i / 63;
+        const r = Math.round(60 + t * 120);
+        const g = Math.round(120 - t * 100);
+        const b = Math.round(240 - t * 40);
+        colors.push(`rgb(${r},${g},${b})`);
+      }
+
+      colors.forEach((c) => {
+        const div = document.createElement('div');
+        div.style.background = c;
+        div.title = c;
+        strip.appendChild(div);
+      });
+    })();
+  </script>
+</body>
+</html>
